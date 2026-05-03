@@ -385,7 +385,8 @@
       </div>
       <div class="group">
         <span class="sep">airport</span>
-        <select class="facet-select" id="f-airport"></select>
+        <input class="facet-select" id="f-airport" type="text" placeholder="any" list="airports-list" autocomplete="off">
+        <datalist id="airports-list"></datalist>
         <button class="facet-clear" data-clear="airport" title="clear">×</button>
       </div>
       <div class="group">
@@ -605,10 +606,20 @@ $('btn-lock').addEventListener('click', () => {
   location.reload();
 });
 
-// ============ Facets ============
 function populateFacets() {
-  const fields = ['airport', 'position', 'date'];
-  for (const f of fields) {
+  // Airport — text input with autocomplete from datalist
+  const airportInput = $('f-airport');
+  const airportList = $('airports-list');
+  airportList.innerHTML = (meta.facets.airport || [])
+    .map(x => `<option value="${escapeAttr(x.value)}">${x.count}</option>`)
+    .join('');
+  airportInput.addEventListener('input', () => {
+    facetSel.airport = airportInput.value.trim();
+    rerun();
+  });
+
+  // Position + date — still dropdowns
+  for (const f of ['position', 'date']) {
     const sel = $(`f-${f}`);
     sel.innerHTML =
       `<option value="">all (${(meta.facets[f] || []).reduce((a, x) => a + x.count, 0).toLocaleString()})</option>` +
@@ -620,11 +631,13 @@ function populateFacets() {
       rerun();
     });
   }
+
   document.querySelectorAll('.facet-clear').forEach(btn => {
     btn.addEventListener('click', () => {
       const f = btn.dataset.clear;
       facetSel[f] = '';
-      $(`f-${f}`).value = '';
+      const el = $(`f-${f}`);
+      if (el.tagName === 'INPUT') el.value = ''; else el.value = '';
       rerun();
     });
   });
@@ -650,7 +663,7 @@ function doSearch(query) {
 function applyFilters(docs) {
   return docs.filter(d => {
     if (activeFilter !== 'all' && !(d.roles || []).includes(activeFilter)) return false;
-    if (facetSel.airport  && d.airport  !== facetSel.airport)  return false;
+    if (facetSel.airport && !d.airport?.toLowerCase().includes(facetSel.airport.toLowerCase())) return false;
     if (facetSel.position && d.position !== facetSel.position) return false;
     if (facetSel.date     && d.date     !== facetSel.date)     return false;
     return true;
