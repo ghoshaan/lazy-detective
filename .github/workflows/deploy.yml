@@ -66,33 +66,17 @@ jobs:
           fi
 
       # -----------------------------------------------------------------------
-      # Build from every file in ndjson/.
-      # Naming convention: batch-{BATCH}-{YYYY-MM-DD[-HH]}.ndjson
-      # All snapshots are included every build so version history accumulates.
+      # Build from every snapshot in ndjson/.
+      # Convention files (batch-{BATCH}-{DATE}.ndjson) are picked up
+      # automatically. Arbitrary-named files need an entry in manifest.json.
       # -----------------------------------------------------------------------
       - name: Build encrypted search index
         env:
           SEARCH_PASSWORD: ${{ secrets.SEARCH_PASSWORD }}
         run: |
           set -euo pipefail
-          BUILD_ARGS=""
-          for f in ndjson/batch-*.ndjson; do
-            [ -f "$f" ] || continue
-            name=$(basename "$f" .ndjson)
-            rest="${name#batch-}"
-            date=$(echo "$rest" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}(-[0-9]{2})?$' || true)
-            if [ -n "$date" ]; then
-              batch="${rest%-${date}}"
-            else
-              batch="$rest"
-            fi
-            BUILD_ARGS="$BUILD_ARGS $f:$batch${date:+:$date}"
-          done
-          if [ -z "$BUILD_ARGS" ]; then
-            echo "✗ No NDJSON files found in ndjson/ — commit at least one snapshot to get started"
-            exit 1
-          fi
-          echo "→ Building from:$BUILD_ARGS"
+          BUILD_ARGS=$(python3 scripts/build_args.py)
+          echo "→ Sources: $BUILD_ARGS"
           npm run build -- $BUILD_ARGS
 
       - uses: actions/upload-pages-artifact@v3
