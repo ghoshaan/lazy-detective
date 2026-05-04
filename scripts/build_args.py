@@ -4,11 +4,13 @@
 Two sources are merged:
   1. ndjson/batch-{BATCH}-{DATE}.ndjson  — automated Labelbox exports
   2. ndjson/manifest.json                — manually uploaded files
-       Format: { "exact-filename.ndjson": "NicknameBatch", ... }
-       Date is extracted automatically from any ISO timestamp in the
-       filename (e.g. 20260427T204919Z → 2026-04-27-20).
+       Format: { "pattern": "NicknameBatch", ... }
+       Patterns can be exact filenames or globs, e.g.:
+         "202_hours_atc_AU_CH_IE_NL_*.ndjson": "LuckyTulip"
+       Date is auto-extracted from any ISO timestamp in the filename
+       (e.g. 20260427T204919Z → 2026-04-27-20).
 """
-import glob, json, os, re, sys
+import fnmatch, glob, json, os, re, sys
 
 DIR = 'ndjson'
 args = []
@@ -24,23 +26,23 @@ for path in sorted(glob.glob(os.path.join(DIR, 'batch-*.ndjson'))):
     args.append(f"{path}:{batch}:{date}" if date else f"{path}:{batch}")
     seen.add(os.path.basename(path))
 
-# --- manually uploaded files listed in manifest.json ---
+# --- manifest entries: exact filenames or glob patterns ---
 manifest_path = os.path.join(DIR, 'manifest.json')
 if os.path.exists(manifest_path):
     with open(manifest_path, encoding='utf-8') as f:
         manifest = json.load(f)
-    for filename, batch in manifest.items():
-        if filename in seen:
-            continue
-        path = os.path.join(DIR, filename)
-        if not os.path.exists(path):
-            print(f"✗ manifest: '{filename}' not found in {DIR}/", file=sys.stderr)
+    all_ndjson = sorted(f for f in os.listdir(DIR) if f.endswith('.ndjson'))
+    for pattern, batch in manifest.items():
+        matches = [f for f in all_ndjson if fnmatch.fnmatch(f, pattern) and f not in seen]
+        if not matches and '*' not in pattern and '?' not in pattern:
+            print(f"✗ manifest: '{pattern}' not found in {DIR}/", file=sys.stderr)
             sys.exit(1)
-        # Parse ISO compact timestamp: 20260427T204919Z → 2026-04-27-20
-        m = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})\d{4}Z', filename)
-        date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}-{m.group(4)}" if m else None
-        args.append(f"{path}:{batch}:{date}" if date else f"{path}:{batch}")
-        seen.add(filename)
+        for filename in matches:
+            path = os.path.join(DIR, filename)
+            m = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})\d{4}Z', filename)
+            date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}-{m.group(4)}" if m else None
+            args.append(f"{path}:{batch}:{date}" if date else f"{path}:{batch}")
+            seen.add(filename)
 
 if not args:
     print(f"✗ No NDJSON files found in {DIR}/ — add files or check manifest.json", file=sys.stderr)
