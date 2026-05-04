@@ -73,11 +73,7 @@ jobs:
       - name: Build encrypted search index
         env:
           SEARCH_PASSWORD: ${{ secrets.SEARCH_PASSWORD }}
-        run: |
-          set -euo pipefail
-          BUILD_ARGS=$(python3 scripts/build_args.py)
-          echo "→ Sources: $BUILD_ARGS"
-          npm run build -- $BUILD_ARGS
+        run: bash scripts/build.sh
 
       - uses: actions/upload-pages-artifact@v3
         with:

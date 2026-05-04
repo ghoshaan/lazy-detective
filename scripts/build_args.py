@@ -71,4 +71,4 @@ if not args:
     print(f"✗ No NDJSON files found in {DIR}/ — add files or check manifest.json", file=sys.stderr)
     sys.exit(1)
 
-print(' '.join(args))
+print('\n'.join(args))
