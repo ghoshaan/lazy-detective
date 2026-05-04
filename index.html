@@ -123,6 +123,16 @@
   .annotator-line { font-size: 10px; color: var(--ink-faint); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.12em; }
   .annotator-line b { color: var(--ink-dim); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
+  .version-badge { font-size: 10px; color: var(--ink-dim); cursor: pointer; border: 1px solid var(--line-2); padding: 2px 7px; user-select: none; transition: color 0.15s, border-color 0.15s; background: transparent; font-family: inherit; }
+  .version-badge:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
+  .version-badge.open { color: var(--amber); border-color: rgba(255,179,71,0.4); }
+  .history-panel { display: none; margin-top: 10px; border-left: 2px solid var(--line-2); padding-left: 14px; }
+  .history-panel.open { display: block; }
+  .history-entry { display: grid; grid-template-columns: 100px 18px 1fr; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 11px; }
+  .history-date { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .history-glyph { color: var(--amber); text-align: center; }
+  .history-desc { color: var(--ink-dim); }
+
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 64px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
 
@@ -336,7 +346,7 @@ async function loadEncryptedData(cryptoKey) {
     fields: ['transcript', 'key'],
     storeFields: ['id', 'projectId', 'key', 'duration', 'speakers', 'roles', 'segments', 'transcript',
                   'airport', 'position', 'date', 'time', 'batch', 'snapshotDate', 'annotator',
-                  'reviewed', 'reviewedBy', 'reviewedAt'],
+                  'reviewed', 'reviewedBy', 'reviewedAt', 'versions'],
     searchOptions: { boost: { key: 2 }, fuzzy: 0.2, prefix: true },
     tokenize: (text) => text.split(/[\s,.;:!?()[\]{}"<>|/\\-]+/).filter(Boolean),
   });
@@ -478,6 +488,10 @@ function renderDoc(d, terms) {
   const reviewTag = d.reviewed
     ? `<span class="tag tag-reviewed" title="reviewed by ${escapeAttr(d.reviewedBy || '?')}${reviewedAtFmt ? ' on ' + reviewedAtFmt : ''}">✓ reviewed</span>`
     : `<span class="tag tag-unreviewed">unreviewed</span>`;
+  const versions = d.versions || [];
+  const vBadge = versions.length > 0
+    ? `<button class="version-badge" data-vid="${escapeAttr(String(d.id))}">&#x1F4DC; ${versions.length}</button>`
+    : '';
   const segs = (d.segments || []).map(s => `
     <div class="seg">
       <span class="seg-time">${formatMs(s.start)}</span>
@@ -500,6 +514,7 @@ function renderDoc(d, terms) {
       <header class="result-head">
         ${keyEl}
        <div class="result-tags">
+          ${vBadge}
           ${reviewTag}
           ${batchTag}
           ${roleTags}
@@ -510,8 +525,34 @@ function renderDoc(d, terms) {
 <div class="segments">${segs}</div>
       ${annotatorLine}
       ${reviewerLine}
+      ${renderHistory(versions, d.id)}
     </article>
   `;
+}
+
+function versionGlyph(v, prevV) {
+  if (v.changeType === 'initial') return '—';
+  if (v.changeType === 'content-only') return '⟲';
+  const approved = v.reviewed && !(prevV && prevV.reviewed);
+  if (approved) return '✓';
+  if (v.changeType === 'state-and-content') return '⟲';
+  return '·';
+}
+function versionDesc(v) {
+  if (v.changeType === 'initial') return `initial · annotator ${escapeHtml(v.annotator || '?')}`;
+  if (v.changeType === 'content-only') return 'transcript revised';
+  if (v.changeType === 'state-only') return v.reviewed ? `approved by ${escapeHtml(v.reviewedBy || '?')}` : 'review status changed';
+  if (v.changeType === 'state-and-content') return v.reviewed ? `approved · transcript revised` : 'transcript revised · status changed';
+  return escapeHtml(v.changeType || '?');
+}
+function renderHistory(versions, id) {
+  if (!versions || !versions.length) return '';
+  // Reverse for display: most recent at top. prevV is [i+1] in the reversed array = chronologically earlier.
+  const rev = [...versions].reverse();
+  const entries = rev.map((v, i) =>
+    `<div class="history-entry"><span class="history-date">${escapeHtml(v.snapshotDate || '—')}</span><span class="history-glyph">${versionGlyph(v, rev[i + 1])}</span><span class="history-desc">${versionDesc(v)}</span></div>`
+  ).join('');
+  return `<div class="history-panel" id="hp-${escapeAttr(String(id))}">${entries}</div>`;
 }
 
 function formatMs(ms) { return ms == null ? '' : (ms / 1000).toFixed(2) + 's'; }
@@ -531,6 +572,14 @@ let debounceTimer;
 q.addEventListener('input', e => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => rerun(), 80);
+});
+results.addEventListener('click', e => {
+  const badge = e.target.closest('.version-badge');
+  if (!badge) return;
+  const panel = document.getElementById(`hp-${badge.dataset.vid}`);
+  if (!panel) return;
+  panel.classList.toggle('open');
+  badge.classList.toggle('open');
 });
 document.querySelectorAll('.pill[data-review]').forEach(btn => {
   btn.addEventListener('click', () => {
