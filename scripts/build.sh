@@ -15,7 +15,11 @@ fi
 echo "→ NDJSON file sizes:"
 ls -lh ndjson/*.ndjson 2>/dev/null || echo "  (none found)"
 
-readarray -t ARGS < <(python3 scripts/build_args.py | tr -d '\r')
+readarray -t ARGS < <(python3 scripts/build_args.py 2>/dev/null | tr -d '\r') || true
+if [ ${#ARGS[@]} -eq 0 ]; then
+  echo "→ No NDJSON files found — skipping build (configure LABELBOX_PROJECTS or add files to ndjson/)"
+  exit 0
+fi
 printf '→ Sources:\n'
 printf '  %s\n' "${ARGS[@]}"
 node scripts/build.mjs "${ARGS[@]}"
