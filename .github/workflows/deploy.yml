@@ -49,8 +49,8 @@ jobs:
           NDJSON_DIR: ndjson
         run: |
           set -euo pipefail
-          if [ -z "${LABELBOX_PROJECTS:-}" ]; then
-            echo "→ LABELBOX_PROJECTS not set — skipping Labelbox export"
+          if [ -z "${LABELBOX_PROJECTS:-}" ] || [ -z "${LABELBOX_API_KEY:-}" ]; then
+            echo "→ LABELBOX_API_KEY or LABELBOX_PROJECTS not set — skipping Labelbox export"
             exit 0
           fi
           pip install labelbox --quiet
