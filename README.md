@@ -43,6 +43,29 @@ You can override the date manually if needed: `PROJECT_ID:BATCH_NAME:YYYY-MM-DD`
 cmoboff2o0mnk07zwg0thgem7:NeutralKoala, cmoboldal08eg0738ayr2gdcy:CoastalLatency, cmokdpcr706v5070x7kt0b3ph:LuckyTulip
 ```
 
+#### Verify an API key (before setting secrets)
+
+```bash
+pip install labelbox
+LABELBOX_API_KEY=<your-key> python3 scripts/lb_verify.py
+```
+
+Expected output:
+```
+→ Connecting to Labelbox...
+✓ Connected — you@example.com  (org: YourOrg)
+
+  ✓ NeutralKoala     'NeutralKoala project'
+  ✓ CoastalLatency   'CoastalLatency project'
+  ✓ LuckyTulip       'LuckyTulip project'
+
+All projects reachable. Set these two secrets to activate automated exports:
+  LABELBOX_API_KEY  = <your key>
+  LABELBOX_PROJECTS = cmoboff2o0mnk07zwg0thgem7:NeutralKoala,...
+```
+
+This confirms the key authenticates and has access to all three projects without doing a full export or writing any files.
+
 #### How it works
 
 1. `scripts/lb_export.py` exports each project via Labelbox Export v2
@@ -149,23 +172,17 @@ If you set `GDRIVE_FILE_ID` (the original single-file secret) instead of `GDRIVE
 ## Local development
 
 ```bash
-npm install
+npm ci
+pip install labelbox   # only needed for lb_export.py / lb_verify.py
 
-# Single file
-SEARCH_PASSWORD="..." npm run build -- input.ndjson
+# Verify Labelbox key
+LABELBOX_API_KEY=<key> python3 scripts/lb_verify.py
 
-# Multiple files with batch names and snapshot dates
-SEARCH_PASSWORD="..." npm run build -- jan.ndjson:january:2026-01-01 feb.ndjson:february:2026-02-01
+# Build from existing snapshots in ndjson/
+SEARCH_PASSWORD="..." bash scripts/build.sh
 
 # Preview
 npx serve public
-```
-
-On Windows Command Prompt, set the env var first:
-
-```cmd
-set SEARCH_PASSWORD=yourpassphrase
-npm run build -- jan.ndjson:january:2026-01-01
 ```
 
 ---
