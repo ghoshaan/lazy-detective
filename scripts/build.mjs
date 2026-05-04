@@ -342,7 +342,7 @@ const facets = {
 // MiniSearch index
 // ---------------------------------------------------------------------------
 const ms = new MiniSearch({
-  fields: ['transcript', 'key'],
+  fields: ['transcript', 'key', 'id'],
   storeFields: ['id', 'projectId', 'key', 'duration', 'speakers', 'roles', 'segments', 'transcript',
     'airport', 'position', 'date', 'time', 'batch', 'snapshotDate', 'annotator',
     'reviewed', 'reviewedBy', 'reviewedAt', 'versions'],
