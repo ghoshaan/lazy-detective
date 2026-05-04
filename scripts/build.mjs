@@ -231,18 +231,15 @@ function flatten(row, batchName, snapshotDate) {
 // ---------------------------------------------------------------------------
 // Stream all input files
 // ---------------------------------------------------------------------------
-const seenIds = new Set(); // dedupe across batches by row id
-const rows = [];
+const allOccurrences = []; // all transcripted rows, including cross-batch duplicates
 let totalLines = 0;
 let totalSkipped = 0;
-let totalDuped = 0;
 
 for (const job of jobs) {
   console.log(`→ Reading ${job.file}  (batch="${job.batch}"${job.snapshotDate ? `, date=${job.snapshotDate}` : ''})`);
   let lineNum = 0;
   let kept = 0;
   let skipped = 0;
-  let duped = 0;
 
   const rl = readline.createInterface({
     input: fs.createReadStream(job.file, { encoding: 'utf8' }),
@@ -256,9 +253,7 @@ for (const job of jobs) {
     try {
       const flat = flatten(JSON.parse(trimmed), job.batch, job.snapshotDate);
       if (!flat.transcript) { skipped++; continue; }
-      if (flat.id && seenIds.has(flat.id)) { duped++; continue; }
-      if (flat.id) seenIds.add(flat.id);
-      rows.push(flat);
+      allOccurrences.push(flat);
       kept++;
     } catch (e) {
       console.warn(`  ! line ${lineNum} parse error: ${e.message}`);
@@ -266,12 +261,59 @@ for (const job of jobs) {
     }
     if (lineNum % 1000 === 0) process.stdout.write(`  ${lineNum} lines\r`);
   }
-  console.log(`  ${lineNum} lines · kept ${kept} · skipped ${skipped} · duped ${duped}`);
-  totalLines += lineNum; totalSkipped += skipped; totalDuped += duped;
+  console.log(`  ${lineNum} lines · kept ${kept} · skipped ${skipped}`);
+  totalLines += lineNum; totalSkipped += skipped;
 }
-console.log(`✓ Total: ${totalLines} lines read, ${rows.length} kept, ${totalSkipped} skipped, ${totalDuped} duped`);
+console.log(`→ Total: ${totalLines} lines read, ${allOccurrences.length} occurrences, ${totalSkipped} skipped`);
+
+// ---------------------------------------------------------------------------
+// Group occurrences by id, build version history per row
+// ---------------------------------------------------------------------------
+const rows = [];
+const grouped = new Map();
+
+for (const occ of allOccurrences) {
+  if (!occ.id) { rows.push({ ...occ, versions: [] }); continue; }
+  if (!grouped.has(occ.id)) grouped.set(occ.id, []);
+  grouped.get(occ.id).push(occ);
+}
+
+for (const occurrences of grouped.values()) {
+  // Sort chronologically so we can walk the transition sequence
+  occurrences.sort((a, b) => String(a.snapshotDate ?? '').localeCompare(String(b.snapshotDate ?? '')));
+
+  const primary = occurrences[occurrences.length - 1];
+  const versions = [];
+  let prevStateKey = null;
+  let prevContentKey = null;
+
+  // Walk every snapshot EXCEPT the last (which becomes the primary)
+  for (let i = 0; i < occurrences.length - 1; i++) {
+    const occ = occurrences[i];
+    const stateKey = JSON.stringify([occ.reviewed, occ.reviewedBy, occ.annotator]);
+    const contentKey = occ.transcript;
+
+    if (prevStateKey === null) {
+      versions.push({ snapshotDate: occ.snapshotDate, reviewed: occ.reviewed, reviewedBy: occ.reviewedBy, reviewedAt: occ.reviewedAt, annotator: occ.annotator, transcript: occ.transcript, changeType: 'initial' });
+    } else {
+      const sc = stateKey !== prevStateKey;
+      const cc = contentKey !== prevContentKey;
+      if (sc || cc) {
+        const changeType = sc && cc ? 'state-and-content' : sc ? 'state-only' : 'content-only';
+        versions.push({ snapshotDate: occ.snapshotDate, reviewed: occ.reviewed, reviewedBy: occ.reviewedBy, reviewedAt: occ.reviewedAt, annotator: occ.annotator, transcript: occ.transcript, changeType });
+      }
+    }
+
+    prevStateKey = stateKey;
+    prevContentKey = contentKey;
+  }
+
+  rows.push({ ...primary, versions });
+}
+
 const reviewedCount = rows.filter(r => r.reviewed).length;
-console.log(`  Reviewed: ${reviewedCount} / ${rows.length} (${((reviewedCount/rows.length)*100).toFixed(1)}%)`);
+const withHistory = rows.filter(r => r.versions.length > 0).length;
+console.log(`✓ ${rows.length} unique rows · ${reviewedCount} reviewed · ${withHistory} with history · ${totalSkipped} skipped`);
 // ---------------------------------------------------------------------------
 // Facets
 // ---------------------------------------------------------------------------
@@ -302,8 +344,8 @@ const facets = {
 const ms = new MiniSearch({
   fields: ['transcript', 'key'],
   storeFields: ['id', 'projectId', 'key', 'duration', 'speakers', 'roles', 'segments', 'transcript',
-    'airport', 'position', 'date', 'time', 'batch', 'annotator',
-    'reviewed', 'reviewedBy', 'reviewedAt'],
+    'airport', 'position', 'date', 'time', 'batch', 'snapshotDate', 'annotator',
+    'reviewed', 'reviewedBy', 'reviewedAt', 'versions'],
   searchOptions: {
     boost: { key: 2 },
     fuzzy: 0.2,
