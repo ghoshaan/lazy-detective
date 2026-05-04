@@ -8,6 +8,7 @@ Reads env vars:
 """
 import labelbox as lb
 import json, os, sys
+from datetime import datetime, timezone
 
 
 def main():
@@ -35,7 +36,9 @@ def main():
             sys.exit(1)
         project_id = parts[0]
         batch      = parts[1]
-        date       = parts[2] if len(parts) > 2 else None
+        # Use explicit date if provided, otherwise stamp with current UTC hour
+        # so each automated run produces a distinct versioned snapshot.
+        date = parts[2] if len(parts) > 2 else datetime.now(timezone.utc).strftime('%Y-%m-%d-%H')
 
         print(f"→ Exporting '{batch}' from project {project_id}…")
         project = client.get_project(project_id)
