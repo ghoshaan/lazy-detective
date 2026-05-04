@@ -6,17 +6,35 @@ Two sources are merged:
   2. ndjson/manifest.json                — manually uploaded files
        Format: { "pattern": "NicknameBatch", ... }
        Patterns can be exact filenames or globs, e.g.:
+         "Export  project - 13_hours_earwave_*": "CoastalLatency"
          "202_hours_atc_AU_CH_IE_NL_*.ndjson": "LuckyTulip"
-       Date is auto-extracted from any ISO timestamp in the filename
-       (e.g. 20260427T204919Z → 2026-04-27-20).
-       When the same export is re-downloaded, the OS appends " (1)", " (2)"
-       etc. before the extension. The download number is appended to the date
-       (e.g. 2026-04-27-20-1) so snapshots sort in the correct order for
-       version history without discarding any files.
+
+Snapshot date extraction (first match wins):
+  1. Trailing M_D_YYYY before .ndjson  — pull date, unique per re-export
+       e.g. "- 5_3_2026.ndjson" → 2026-05-03
+  2. ISO timestamp YYYYMMDDTHHMMSSZ    — upload timestamp (same across re-exports)
+       e.g. "20260427T204919Z" → 2026-04-27-20
 """
 import fnmatch, glob, json, os, re, sys
 
-_NUMBERED_RE = re.compile(r'^(.*?) \((\d+)\)(\.ndjson)$', re.IGNORECASE)
+def _extract_date(filename):
+    # (N) re-download suffix, e.g. "foo (2).ndjson"
+    nm = re.search(r' \((\d+)\)\.ndjson$', filename, re.IGNORECASE)
+    dl_num = int(nm.group(1)) if nm else 0
+
+    # Trailing pull-date like "- 5_3_2026.ndjson" or "- 5_3_2026 (1).ndjson"
+    m = re.search(r'- (\d{1,2})_(\d{1,2})_(\d{4})(?:\s+\(\d+\))?\.ndjson$', filename, re.IGNORECASE)
+    if m:
+        base = f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+        return f"{base}-{dl_num}" if dl_num else base
+
+    # ISO timestamp fallback (for files without a trailing pull-date)
+    m = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})\d{4}Z', filename)
+    if m:
+        base = f"{m.group(1)}-{m.group(2)}-{m.group(3)}-{m.group(4)}"
+        return f"{base}-{dl_num}" if dl_num else base
+
+    return None
 
 DIR = 'ndjson'
 args = []
@@ -45,14 +63,7 @@ if os.path.exists(manifest_path):
             sys.exit(1)
         for filename in matches:
             path = os.path.join(DIR, filename)
-            nm = _NUMBERED_RE.match(filename)
-            dl_num = int(nm.group(2)) if nm else 0
-            # Extract ISO timestamp from the base name (strip " (N)" before searching)
-            base_name = nm.group(1) + nm.group(3) if nm else filename
-            m = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})\d{4}Z', base_name)
-            date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}-{m.group(4)}" if m else None
-            if date and dl_num:
-                date = f"{date}-{dl_num}"
+            date = _extract_date(filename)
             args.append(f"{path}:{batch}:{date}" if date else f"{path}:{batch}")
             seen.add(filename)
 
