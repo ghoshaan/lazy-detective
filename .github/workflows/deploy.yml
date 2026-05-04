@@ -121,8 +121,13 @@ jobs:
               exit 1
             fi
 
-            OUT="batch-${BATCH}.ndjson"
-            echo "→ Downloading ${BATCH}..."
+            # Include date in filename so two snapshots of the same batch don't collide.
+            if [ -n "$DATE" ]; then
+              OUT="batch-${BATCH}-${DATE}.ndjson"
+            else
+              OUT="batch-${BATCH}.ndjson"
+            fi
+            echo "→ Downloading ${BATCH}${DATE:+ ($DATE)}..."
             download_one "$FILE_ID" "$OUT"
             if [ -n "$DATE" ]; then
               BUILD_ARGS="$BUILD_ARGS $OUT:$BATCH:$DATE"
