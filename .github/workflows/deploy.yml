@@ -66,6 +66,34 @@ jobs:
           fi
 
       # -----------------------------------------------------------------------
+      # Download additional NDJSON snapshots from Google Drive.
+      # DRIVE_NDJSON_IDS is a comma-separated list of Drive file IDs. Each
+      # file must be shared as "anyone with the link". The original Drive
+      # filename is preserved so existing manifest.json glob patterns match.
+      # Skipped if DRIVE_NDJSON_IDS is not set.
+      # -----------------------------------------------------------------------
+      - name: Download NDJSON from Google Drive
+        env:
+          DRIVE_NDJSON_IDS: ${{ secrets.DRIVE_NDJSON_IDS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DRIVE_NDJSON_IDS:-}" ]; then
+            echo "→ DRIVE_NDJSON_IDS not set — skipping Drive download"
+            exit 0
+          fi
+          pip install gdown --quiet
+          mkdir -p ndjson
+          IFS=',' read -ra IDS <<< "$DRIVE_NDJSON_IDS"
+          for raw in "${IDS[@]}"; do
+            id=$(echo "$raw" | xargs)
+            [ -z "$id" ] && continue
+            echo "→ Downloading Drive ID: $id"
+            (cd ndjson && gdown --fuzzy "https://drive.google.com/uc?id=${id}")
+          done
+          echo "→ NDJSON files in ndjson/ after Drive download:"
+          ls -lh ndjson/*.ndjson 2>/dev/null || echo "  (none)"
+
+      # -----------------------------------------------------------------------
       # Build from every snapshot in ndjson/.
       # Convention files (batch-{BATCH}-{DATE}.ndjson) are picked up
       # automatically. Arbitrary-named files need an entry in manifest.json.
