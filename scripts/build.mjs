@@ -26,8 +26,29 @@ import MiniSearch from 'minisearch';
 // ---------------------------------------------------------------------------
 // Args & env
 // ---------------------------------------------------------------------------
-const inputs = process.argv.slice(2);
-if (inputs.length === 0) inputs.push('input.ndjson'); // default
+let inputs = process.argv.slice(2);
+
+// Expand any directories into a list of their .ndjson files
+inputs = inputs.flatMap(spec => {
+  const folderPath = spec.split(':')[0]; 
+  if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
+    return fs.readdirSync(folderPath)
+      .filter(f => f.toLowerCase().endsWith('.ndjson'))
+      .map(f => path.join(folderPath, f));
+  }
+  return spec;
+});
+
+// Default to the "ndjson" folder if you run the script with no arguments
+if (inputs.length === 0) {
+  if (fs.existsSync('ndjson') && fs.statSync('ndjson').isDirectory()) {
+    inputs = fs.readdirSync('ndjson')
+      .filter(f => f.toLowerCase().endsWith('.ndjson'))
+      .map(f => path.join('ndjson', f));
+  } else {
+    inputs.push('input.ndjson'); 
+  }
+}
 
 const PASSWORD = process.env.SEARCH_PASSWORD;
 if (!PASSWORD) {
@@ -277,19 +298,37 @@ for (const occ of allOccurrences) {
   if (!grouped.has(occ.id)) grouped.set(occ.id, []);
   grouped.get(occ.id).push(occ);
 }
-
+function sameSnapshot(a, b) {
+  return (a.transcript || '') === (b.transcript || '') &&
+         a.reviewed === b.reviewed &&
+         (a.annotator || null) === (b.annotator || null);
+}
 for (const occurrences of grouped.values()) {
   // Sort chronologically so we can walk the transition sequence
   occurrences.sort((a, b) => String(a.snapshotDate ?? '').localeCompare(String(b.snapshotDate ?? '')));
 
-  const primary = occurrences[occurrences.length - 1];
+  // Collapse runs of consecutive identical snapshots, keeping the newest of
+  // each run. Re-downloading the same Labelbox data on different days
+  // produces this — same content/state but different snapshotDate — and
+  // without this step every re-download adds a redundant version block.
+  const collapsed = [];
+  for (const occ of occurrences) {
+    const last = collapsed[collapsed.length - 1];
+    if (last && sameSnapshot(last, occ)) {
+      collapsed[collapsed.length - 1] = occ;
+      continue;
+    }
+    collapsed.push(occ);
+  }
+
+  const primary = collapsed[collapsed.length - 1];
   const versions = [];
   let prevStateKey = null;
   let prevContentKey = null;
 
   // Walk every snapshot EXCEPT the last (which becomes the primary)
-  for (let i = 0; i < occurrences.length - 1; i++) {
-    const occ = occurrences[i];
+  for (let i = 0; i < collapsed.length - 1; i++) {
+    const occ = collapsed[i];
     const stateKey = JSON.stringify([occ.reviewed, occ.reviewedBy, occ.annotator]);
     const contentKey = occ.transcript;
 
