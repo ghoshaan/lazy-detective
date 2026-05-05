@@ -827,9 +827,12 @@ function buildExportHtml(docs, filename, termsMap) {
   .ver-h b { color: #111; font-weight: 600; }
   mark { background: #fff48a; color: #111; padding: 0 1pt; border-radius: 1pt; }
   .row-key mark { background: #fff48a; color: #111; }
+  mark.diff-del { background: #fde0e0; color: #b8231f; padding: 0; border-radius: 1pt; font-style: normal; }
+  .ver-pct { color: #b8231f; opacity: 0.75; }
   @media print {
     .row, .ver { break-inside: avoid; page-break-inside: avoid; }
     mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff48a !important; }
+    mark.diff-del { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fde0e0 !important; color: #b8231f !important; }
   }
 </style></head><body>
 <h1>ATC Transcript Export</h1>
@@ -852,7 +855,7 @@ function exportRow(d, terms) {
 
   let versionsHtml = '';
   if (d.versions && d.versions.length && hasRealHistory(d.versions, d)) {
-    const verBlocks = [...d.versions].reverse().map(v => exportVersion(v, terms)).join('');
+    const verBlocks = [...d.versions].reverse().map(v => exportVersion(v, terms, d)).join('');
     versionsHtml = `<div class="versions-h">Edit history (${d.versions.length} prior version${d.versions.length === 1 ? '' : 's'})</div>${verBlocks}`;
   }
 
@@ -868,18 +871,26 @@ function exportRow(d, terms) {
   </div>`;
 }
 
-function exportVersion(v, terms) {
+function exportVersion(v, terms, d) {
   const date = v.snapshotDate || '—';
-  const desc = v.changeType === 'initial' ? `initial · labeler ${v.annotator || '?'}` :
-               v.changeType === 'content-only' ? 'transcript revised' :
-               v.changeType === 'state-only' ? (v.reviewed ? 'approved' : 'review status changed') :
-               v.changeType === 'state-and-content' ? (v.reviewed ? 'approved · transcript revised' : 'transcript revised · status changed') :
-               (v.changeType || '');
-  const segs = (v.segments || []).map(s =>
-    `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${highlight(s.text, terms)}</span></div>`
-  ).join('');
+  let desc = v.changeType === 'initial' ? `initial · labeler ${v.annotator || '?'}` :
+             v.changeType === 'content-only' ? 'transcript revised' :
+             v.changeType === 'state-only' ? (v.reviewed ? 'approved' : 'review status changed') :
+             v.changeType === 'state-and-content' ? (v.reviewed ? 'approved · transcript revised' : 'transcript revised · status changed') :
+             (v.changeType || '');
+  desc = escapeHtml(desc);
+  if (v.changeType !== 'state-only' && (v.changeType !== 'initial' || !v.reviewed)) {
+    const { pct } = wordDiff(v.transcript || '', d.transcript || '');
+    if (pct !== null) desc += ` · <span class="ver-pct">${pct}% changed</span>`;
+  }
+  const curByStart = new Map((d.segments || []).map(s => [s.start, s]));
+  const segs = (v.segments || []).map(s => {
+    const cur = curByStart.get(s.start);
+    const textHtml = cur ? wordDiff(s.text, cur.text).html : highlight(s.text, terms);
+    return `<div class="seg"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text">${textHtml}</span></div>`;
+  }).join('');
   const segsHtml = v.changeType !== 'state-only' && segs ? `<div class="segs">${segs}</div>` : '';
-  return `<div class="ver"><div class="ver-h"><b>${escapeHtml(date)}</b> · ${escapeHtml(desc)}</div>${segsHtml}</div>`;
+  return `<div class="ver"><div class="ver-h"><b>${escapeHtml(date)}</b> · ${desc}</div>${segsHtml}</div>`;
 }
 
 // ====================== Wire up ======================
