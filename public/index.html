@@ -575,7 +575,7 @@ function renderPage() {
     statusR.textContent = `showing ${start + 1}-${Math.min(end, filteredDocs.length)} of ${filteredDocs.length.toLocaleString()}`;
   }
 
-  results.innerHTML = slice.map(h => renderDoc(h, currentResults ? h.terms || [] : [])).join('');
+  results.innerHTML = slice.map(h => renderDoc(h, currentResults ? Object.keys(h.match || {}) : [])).join('');
   renderPagination(totalPages);
 }
 
@@ -905,7 +905,7 @@ function wouldMix(d) {
 function getExportTermsMap() {
   const map = {};
   if (!currentResults) return map;
-  for (const h of currentResults) map[h.id] = h.terms || [];
+  for (const h of currentResults) map[h.id] = Object.keys(h.match || []);
   return map;
 }
 
