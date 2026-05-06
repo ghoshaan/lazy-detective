@@ -846,25 +846,10 @@ function alignedWordDiff(oldText, newText) {
         else ins.push(nw[ops[k].ni]);
         k++;
       }
-      const nd = dels.map(normWord), ni = ins.map(normWord);
-      const usedI = new Set(), pairMap = new Map();
-      for (let di = 0; di < dels.length; di++) {
-        let bestJ = -1, bestSim = SIM_THRESHOLD;
-        for (let ii = 0; ii < ins.length; ii++) {
-          if (usedI.has(ii)) continue;
-          const s = wordSim(nd[di], ni[ii]);
-          if (s > bestSim) { bestSim = s; bestJ = ii; }
-        }
-        if (bestJ !== -1) { pairMap.set(di, bestJ); usedI.add(bestJ); }
-      }
-      for (let di = 0; di < dels.length; di++) {
-        slots.push(pairMap.has(di)
-          ? { type: 'pair', oldWord: dels[di], newWord: ins[pairMap.get(di)] }
-          : { type: 'del', word: dels[di] });
-      }
-      for (let ii = 0; ii < ins.length; ii++) {
-        if (!usedI.has(ii)) slots.push({ type: 'ins', word: ins[ii] });
-      }
+      const minLen = Math.min(dels.length, ins.length);
+      for (let pi = 0; pi < minLen; pi++) slots.push({ type: 'pair', oldWord: dels[pi], newWord: ins[pi] });
+      for (let di = minLen; di < dels.length; di++) slots.push({ type: 'del', word: dels[di] });
+      for (let ii = minLen; ii < ins.length; ii++) slots.push({ type: 'ins', word: ins[ii] });
     }
   }
   return slots;
