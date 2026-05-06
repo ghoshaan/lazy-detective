@@ -721,7 +721,8 @@ function wordDiff(oldText, newText) {
   const dp = lcsWords(on, nn);
   if (!dp) return { html: escapeHtml(oldText), pct: null };
   const lcsLen = dp[on.length][nn.length];
-  const pct = Math.round((on.length - lcsLen) / on.length * 100);
+  const changed = on.length - lcsLen;
+  const pct = changed > 0 ? Math.max(1, Math.round(changed / on.length * 100)) : 0;
   const ops = [];
   let i = on.length, j = nn.length;
   while (i > 0 || j > 0) {
