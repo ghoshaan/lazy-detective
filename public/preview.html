@@ -794,21 +794,12 @@ function renderVersionSegs(segments, currentSegments) {
 }
 function renderHistory(versions, id, d) {
   if (!versions || !versions.length || !hasRealHistory(versions, d)) return '';
-  const rev = [...versions].reverse();
-  const currentDesc = d.reviewed
-    ? `approved by ${escapeHtml(d.reviewedBy || '?')}`
-    : `labeler ${escapeHtml(d.annotator || '?')}`;
-  const currentBlock = `<div class="version-block current"><div class="version-block-header"><span class="version-block-date">${escapeHtml(d.snapshotDate || '—')}</span><span class="version-block-glyph">↑</span><span class="version-block-desc">${currentDesc}</span></div></div>`;
-  const priorBlocks = rev.map((v, i) => {
-    let desc = versionDesc(v);
-    if (v.changeType !== 'state-only' && (v.changeType !== 'initial' || !v.reviewed)) {
-      const { pct } = wordDiff(v.transcript || '', d.transcript || '');
-      if (pct !== null) desc += ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>`;
-    }
-    const segs = v.changeType !== 'state-only' ? renderVersionSegs(v.segments, d.segments) : '';
-    return `<div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(v.snapshotDate || '—')}</span><span class="version-block-glyph">${versionGlyph(v, rev[i + 1])}</span><span class="version-block-desc">${desc}</span></div>${segs}</div>`;
-  }).join('');
-  return `<div class="history-panel open" id="hp-${escapeAttr(String(id))}">${currentBlock}${priorBlocks}</div>`;
+  const submitted = [...versions].reverse().find(v => !v.reviewed);
+  if (!submitted) return '';
+  const { pct } = wordDiff(submitted.transcript || '', d.transcript || '');
+  const pctHtml = pct ? ` · <span style="color:var(--red);opacity:0.75">${pct}% changed</span>` : '';
+  const segs = renderVersionSegs(submitted.segments, d.segments);
+  return `<div class="history-panel open" id="hp-${escapeAttr(String(id))}"><div class="version-block prior"><div class="version-block-header"><span class="version-block-date">${escapeHtml(submitted.snapshotDate || '—')}</span><span class="version-block-glyph">⟲</span><span class="version-block-desc">labeler ${escapeHtml(submitted.annotator || '?')}${pctHtml}</span></div>${segs}</div></div>`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
