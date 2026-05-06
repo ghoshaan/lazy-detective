@@ -97,6 +97,9 @@
   main { padding: 8px 0 80px; }
   .result { border-bottom: 1px solid var(--line); padding: 18px 32px; transition: background 0.1s; }
   .result:hover { background: rgba(255,179,71,0.025); }
+  .result.is-read .result-key { opacity: 0.5; }
+  .read-toggle { font-size: 10px; color: var(--ink-faint); background: transparent; border: 1px solid var(--line-2); font-family: inherit; padding: 2px 7px; cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase; }
+  .read-toggle:hover { color: var(--ink); border-color: var(--ink-dim); }
   .result-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
   .result-key { color: var(--ink); font-size: 13px; font-weight: 500; word-break: break-all; }
   a.result-key { text-decoration: none; }
@@ -246,6 +249,12 @@
         <button class="pill" data-filter="atc">atc</button>
       </div>
       <div class="group">
+        <span class="sep">read</span>
+        <button class="pill active" data-read="all">all</button>
+        <button class="pill" data-read="unread">unread</button>
+        <button class="pill" data-read="read">read</button>
+      </div>
+      <div class="group">
         <span class="sep">review</span>
         <button class="pill active" data-review="all">all</button>
         <button class="pill" data-review="reviewed">reviewed</button>
@@ -328,12 +337,20 @@ let meta = null;
 let activeFilter = 'all';
 let activeReview = 'all';
 let activeHistory = 'all';
+let activeRead = 'all';
 let activeSort = 'relevance'; // <-- ADD THIS
 const facetSel = { batch: '', annotator: '', reviewer: '' };
 let currentResults = null; // <-- ADD THIS BACK
 const SESSION_KEY = 'atc-search-key-v1';
 const SELECTION_KEY = 'atc-search-selection-v1';
 let selection = new Set();
+const READ_KEY = 'atc-search-read-v1';
+let readSet = new Set();
+function loadReadSet() {
+  try { readSet = new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]')); } catch { readSet = new Set(); }
+}
+function saveReadSet() { localStorage.setItem(READ_KEY, JSON.stringify([...readSet])); }
+function markRead(id) { if (id && !readSet.has(id)) { readSet.add(id); saveReadSet(); } }
 
 // --- ADD THESE NEW VARIABLES ---
 const COMMENTS_KEY = 'atc-search-comments-v1';
@@ -445,6 +462,7 @@ async function loadEncryptedData(cryptoKey) {
   showApp();
   populateFacets();
   loadSelection();
+  loadReadSet();
   $('m-docs').textContent = meta.count.toLocaleString();
   $('m-hours').textContent = ((meta.totalSeconds || 0) / 3600).toFixed(1);
   statusL.textContent = `ready · ${meta.count.toLocaleString()} recordings`;
@@ -577,6 +595,8 @@ function renderPagination(totalPages) {
 function applyFilters(docs) {
   return docs.filter(d => {
     if (activeFilter !== 'all' && !(d.roles || []).includes(activeFilter)) return false;
+    if (activeRead === 'read' && !readSet.has(d.id)) return false;
+    if (activeRead === 'unread' && readSet.has(d.id)) return false;
     if (activeReview === 'reviewed' && !d.reviewed) return false;
     if (activeReview === 'unreviewed' && d.reviewed) return false;
     if (facetSel.batch && d.batch !== facetSel.batch) return false;
@@ -680,7 +700,7 @@ function renderDoc(d, terms) {
   const cbEl = `<input type="checkbox" class="select-cb" data-sel="${escapeAttr(String(d.id))}" ${isSel} title="add to selection">`;
 
   return `
-    <article class="result">
+    <article class="result${readSet.has(d.id) ? ' is-read' : ''}" data-docid="${escapeAttr(String(d.id))}">
       <header class="result-head">
         <div class="result-key-wrap">${cbEl}${keyEl}</div>
        <div class="result-tags">
@@ -690,6 +710,7 @@ function renderDoc(d, terms) {
           ${roleTags}
           ${facetTags}
           <span class="tag-dur">${dur}</span>
+          <button class="read-toggle" data-rid="${escapeAttr(String(d.id))}">${readSet.has(d.id) ? 'unread' : 'read'}</button>
         </div>
       </header>
 <div class="segments">${segs}</div>
@@ -1056,6 +1077,14 @@ results.addEventListener('click', e => {
     }
     return;
   }
+  const readBtn = e.target.closest('.read-toggle');
+  if (readBtn) {
+    const id = readBtn.dataset.rid;
+    const article = readBtn.closest('.result');
+    if (readSet.has(id)) { readSet.delete(id); saveReadSet(); article.classList.remove('is-read'); readBtn.textContent = 'read'; }
+    else { markRead(id); article.classList.add('is-read'); readBtn.textContent = 'unread'; }
+    return;
+  }
   const badge = e.target.closest('.version-badge');
   if (!badge) return;
   const panel = document.getElementById(`hp-${badge.dataset.vid}`);
@@ -1093,6 +1122,14 @@ $('sel-clear').addEventListener('click', () => {
   document.querySelectorAll('.select-cb:checked').forEach(cb => cb.checked = false);
 });
 $('sel-export').addEventListener('click', exportPdf);
+document.querySelectorAll('.pill[data-read]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pill[data-read]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeRead = btn.dataset.read;
+    rerun();
+  });
+});
 document.querySelectorAll('.pill[data-review]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.pill[data-review]').forEach(b => b.classList.remove('active'));
