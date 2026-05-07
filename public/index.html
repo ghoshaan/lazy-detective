@@ -170,6 +170,11 @@
   .ct-label { text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; margin-right: 2px; }
   .ct-pill { padding: 3px 9px; border: 1px solid var(--line-2); }
   .ct-pill b { color: var(--ink); font-weight: 500; }
+  .stats-detail-row td { padding: 6px 8px 12px; background: rgba(255,179,71,0.03); }
+  .stats-detail { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--ink-dim); }
+  .stats-detail span b { font-weight: 500; }
+  .stats-row { cursor: pointer; }
+  .stats-row.expanded { background: rgba(255,179,71,0.04); }
 
   .empty { padding: 80px 32px; text-align: center; color: var(--ink-faint); }
   .empty .glyph { font-family: 'Fraunces', serif; font-size: 65px; font-style: italic; color: var(--line-2); margin-bottom: 12px; }
@@ -284,13 +289,7 @@
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
             <th data-sort="annotator" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Labeler <span class="sort-indicator">⇅</span></th>
             <th data-sort="concernScore" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Concern <span class="sort-indicator">⇅</span></th>
-            <th data-sort="submitted" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Submitted <span class="sort-indicator">⇅</span></th>
-            <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
             <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
-            <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
-            <th data-sort="roleFlips" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Role Flips <span class="sort-indicator">⇅</span></th>
-            <th data-sort="capsChange" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Caps Chg <span class="sort-indicator">⇅</span></th>
-            <th data-sort="timeShifts" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Time Shifts <span class="sort-indicator">⇅</span></th>
           </tr>
         </thead>
         <tbody id="stats-tbody"></tbody>
@@ -310,12 +309,7 @@
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
             <th data-sort="reviewer" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Reviewer <span class="sort-indicator">⇅</span></th>
             <th data-sort="concernScore" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Concern <span class="sort-indicator">⇅</span></th>
-            <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
             <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
-            <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
-            <th data-sort="roleFlips" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Role Flips <span class="sort-indicator">⇅</span></th>
-            <th data-sort="capsChange" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Caps Chg <span class="sort-indicator">⇅</span></th>
-            <th data-sort="timeShifts" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Time Shifts <span class="sort-indicator">⇅</span></th>
           </tr>
         </thead>
         <tbody id="reviewer-stats-tbody"></tbody>
@@ -334,13 +328,7 @@
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
             <th data-sort="annotator" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Labeler <span class="sort-indicator">⇅</span></th>
             <th data-sort="concernScore" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Concern <span class="sort-indicator">⇅</span></th>
-            <th data-sort="submitted" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Submitted <span class="sort-indicator">⇅</span></th>
-            <th data-sort="approved" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Approved <span class="sort-indicator">⇅</span></th>
             <th data-sort="withHistory" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Has History <span class="sort-indicator">⇅</span></th>
-            <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
-            <th data-sort="roleFlips" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Role Flips <span class="sort-indicator">⇅</span></th>
-            <th data-sort="capsChange" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Caps Chg <span class="sort-indicator">⇅</span></th>
-            <th data-sort="timeShifts" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Time Shifts <span class="sort-indicator">⇅</span></th>
           </tr>
         </thead>
         <tbody id="rev-as-labeler-stats-tbody"></tbody>
@@ -1552,6 +1540,29 @@ function computeLabelerStats(sortCol, sortDir) {
   return result;
 }
 
+function toggleStatsDetail(tr) {
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains('stats-detail-row')) {
+    next.remove();
+    tr.classList.remove('expanded');
+    return;
+  }
+  tr.classList.add('expanded');
+  const d = tr.dataset;
+  const items = [
+    d.submitted !== undefined ? `<span>submitted <b>${d.submitted}</b></span>` : '',
+    `<span>approved <b>${d.approved}</b></span>`,
+    `<span>avg % changed <b style="color:var(--amber)">${d.avgpct}%</b></span>`,
+    `<span>role flips <b style="color:${+d.roleflips ? 'var(--red)' : 'var(--ink-faint)'}">${+d.roleflips || '—'}</b></span>`,
+    `<span>caps chg <b style="color:${+d.capschg ? 'var(--ink-dim)' : 'var(--ink-faint)'}">${+d.capschg || '—'}</b></span>`,
+    `<span>time shifts <b style="color:${+d.timeshifts ? 'var(--pilot)' : 'var(--ink-faint)'}">${+d.timeshifts || '—'}</b></span>`,
+  ].filter(Boolean).join('');
+  const row = document.createElement('tr');
+  row.className = 'stats-detail-row';
+  row.innerHTML = `<td colspan="3"><div class="stats-detail">${items}</div></td>`;
+  tr.after(row);
+}
+
 function concernColor(score) {
   if (score >= 60) return 'var(--red)';
   if (score >= 25) return 'var(--amber)';
@@ -1562,16 +1573,12 @@ function renderLabelerStats() {
   const stats = computeLabelerStats(labelerSortCol, labelerSortDir);
   const tbody = $('stats-tbody');
   tbody.innerHTML = stats.map(s => `
-    <tr>
-      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy">${escapeHtml(s.annotator)}</span></td>
+    <tr class="stats-row" onclick="toggleStatsDetail(this)"
+        data-submitted="${s.submitted}" data-approved="${s.approved}" data-avgpct="${s.avgPct}"
+        data-roleflips="${s.roleFlips}" data-capschg="${s.capsChange}" data-timeshifts="${s.timeShifts}">
+      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy" onclick="event.stopPropagation()">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right; font-weight: 500; color: ${concernColor(s.concernScore)};">${s.concernScore}</td>
-      <td style="text-align: right;">${s.submitted}</td>
-      <td style="text-align: right;">${s.approved}</td>
       <td style="text-align: right;">${s.withHistory}</td>
-      <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
-      <td style="text-align: right; color: ${s.roleFlips ? 'var(--red)' : 'var(--ink-faint)'};">${s.roleFlips || '—'}</td>
-      <td style="text-align: right; color: ${s.capsChange ? 'var(--ink-dim)' : 'var(--ink-faint)'};">${s.capsChange || '—'}</td>
-      <td style="text-align: right; color: ${s.timeShifts ? 'var(--pilot)' : 'var(--ink-faint)'};">${s.timeShifts || '—'}</td>
     </tr>
   `).join('');
   updateSortIndicators('stats-table', labelerSortCol, labelerSortDir);
@@ -1663,15 +1670,12 @@ function renderReviewerStats() {
   ` : '';
   const tbody = $('reviewer-stats-tbody');
   tbody.innerHTML = stats.map(s => `
-    <tr>
-      <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy">${escapeHtml(s.reviewer)}</span></td>
+    <tr class="stats-row" onclick="toggleStatsDetail(this)"
+        data-approved="${s.approved}" data-avgpct="${s.avgPct}"
+        data-roleflips="${s.roleFlips}" data-capschg="${s.capsChange}" data-timeshifts="${s.timeShifts}">
+      <td><span class="copy-id" data-copy="${escapeAttr(s.reviewer)}" title="click to copy" onclick="event.stopPropagation()">${escapeHtml(s.reviewer)}</span></td>
       <td style="text-align: right; font-weight: 500; color: ${concernColor(s.concernScore)};">${s.concernScore}</td>
-      <td style="text-align: right;">${s.approved}</td>
       <td style="text-align: right;">${s.withHistory}</td>
-      <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
-      <td style="text-align: right; color: ${s.roleFlips ? 'var(--red)' : 'var(--ink-faint)'};">${s.roleFlips || '—'}</td>
-      <td style="text-align: right; color: ${s.capsChange ? 'var(--ink-dim)' : 'var(--ink-faint)'};">${s.capsChange || '—'}</td>
-      <td style="text-align: right; color: ${s.timeShifts ? 'var(--pilot)' : 'var(--ink-faint)'};">${s.timeShifts || '—'}</td>
     </tr>
   `).join('');
   updateSortIndicators('reviewer-stats-table', reviewerSortCol, reviewerSortDir);
@@ -1744,16 +1748,12 @@ function renderRevAsLabelerStats() {
   const stats = computeRevAsLabelerStats(revAsLabelerSortCol, revAsLabelerSortDir);
   const tbody = $('rev-as-labeler-stats-tbody');
   tbody.innerHTML = stats.map(s => `
-    <tr>
-      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy">${escapeHtml(s.annotator)}</span></td>
+    <tr class="stats-row" onclick="toggleStatsDetail(this)"
+        data-submitted="${s.submitted}" data-approved="${s.approved}" data-avgpct="${s.avgPct}"
+        data-roleflips="${s.roleFlips}" data-capschg="${s.capsChange}" data-timeshifts="${s.timeShifts}">
+      <td><span class="copy-id" data-copy="${escapeAttr(s.annotator)}" title="click to copy" onclick="event.stopPropagation()">${escapeHtml(s.annotator)}</span></td>
       <td style="text-align: right; font-weight: 500; color: ${concernColor(s.concernScore)};">${s.concernScore}</td>
-      <td style="text-align: right;">${s.submitted}</td>
-      <td style="text-align: right;">${s.approved}</td>
       <td style="text-align: right;">${s.withHistory}</td>
-      <td style="text-align: right; color: var(--amber);">${s.avgPct}</td>
-      <td style="text-align: right; color: ${s.roleFlips ? 'var(--red)' : 'var(--ink-faint)'};">${s.roleFlips || '—'}</td>
-      <td style="text-align: right; color: ${s.capsChange ? 'var(--ink-dim)' : 'var(--ink-faint)'};">${s.capsChange || '—'}</td>
-      <td style="text-align: right; color: ${s.timeShifts ? 'var(--pilot)' : 'var(--ink-faint)'};">${s.timeShifts || '—'}</td>
     </tr>
   `).join('');
   updateSortIndicators('rev-as-labeler-stats-table', revAsLabelerSortCol, revAsLabelerSortDir);
