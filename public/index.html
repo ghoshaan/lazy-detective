@@ -204,11 +204,18 @@
 
   footer { border-top: 1px solid var(--line); padding: 16px 32px; font-size: 10px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.16em; text-align: center; }
 
-  .stats-panel { display: none; border-bottom: 1px solid var(--line); background: var(--panel); }
-  .stats-panel.open { display: block; }
-  .stats-panel tbody tr { border-bottom: 1px solid var(--line-2); }
-  .stats-panel tbody tr:hover { background: rgba(255,179,71,0.05); }
-  .stats-panel td { padding: 10px 8px; }
+  .stats-panel, .reviewer-stats-panel { display: none; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .stats-panel.open, .reviewer-stats-panel.open { display: block; }
+  .stats-panel tbody tr, .reviewer-stats-panel tbody tr { border-bottom: 1px solid var(--line-2); }
+  .stats-panel tbody tr:hover, .reviewer-stats-panel tbody tr:hover { background: rgba(255,179,71,0.05); }
+  .stats-panel td, .reviewer-stats-panel td { padding: 10px 8px; }
+  .stats-panel th, .reviewer-stats-panel th { transition: all 0.15s; }
+  .stats-panel th:hover, .reviewer-stats-panel th:hover { color: var(--amber); }
+  .stats-panel th[data-active], .reviewer-stats-panel th[data-active] { border-bottom-color: var(--amber); color: var(--amber); }
+  .stats-panel th .sort-indicator, .reviewer-stats-panel th .sort-indicator { opacity: 0.4; display: inline-block; }
+  .stats-panel th[data-active] .sort-indicator, .reviewer-stats-panel th[data-active] .sort-indicator { opacity: 1; }
+  .stats-panel th[data-active="asc"] .sort-indicator::after, .reviewer-stats-panel th[data-active="asc"] .sort-indicator::after { content: "↑"; }
+  .stats-panel th[data-active="desc"] .sort-indicator::after, .reviewer-stats-panel th[data-active="desc"] .sort-indicator::after { content: "↓"; }
 
   @media (max-width: 640px) {
     header, .search-wrap, .status, .result, footer { padding-left: 16px; padding-right: 16px; }
@@ -252,6 +259,7 @@
       <span><b id="m-docs">—</b> recordings</span>
       <span><b id="m-hours">—</b> hours</span>
       <button class="lock-out" id="btn-stats">labelers</button>
+      <button class="lock-out" id="btn-reviewer-stats">reviewers</button>
       <button class="lock-out" id="btn-lock">lock</button>
     </div>
   </header>
@@ -265,13 +273,32 @@
       <table id="stats-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
         <thead>
           <tr style="border-bottom: 1px solid var(--line); text-align: left;">
-            <th style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px;">Labeler</th>
-            <th style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right;">Reviews</th>
-            <th style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right;">Reviewed</th>
-            <th style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right;">Avg % Changed</th>
+            <th data-sort="annotator" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Labeler <span class="sort-indicator">⇅</span></th>
+            <th data-sort="reviews" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Reviews <span class="sort-indicator">⇅</span></th>
+            <th data-sort="reviewed" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Reviewed <span class="sort-indicator">⇅</span></th>
+            <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
           </tr>
         </thead>
         <tbody id="stats-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="reviewer-stats-panel" id="reviewer-stats-panel">
+    <div style="padding: 20px; max-width: 900px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0; font-family: inherit; font-size: 16px; font-weight: 500;">Reviewer Statistics</h2>
+        <button class="lock-out" id="btn-close-reviewer-stats">close</button>
+      </div>
+      <table id="reviewer-stats-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--line); text-align: left;">
+            <th data-sort="reviewer" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Reviewer <span class="sort-indicator">⇅</span></th>
+            <th data-sort="reviews" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Reviews <span class="sort-indicator">⇅</span></th>
+            <th data-sort="avgPct" style="padding: 8px; font-weight: 500; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; text-align: right; cursor: pointer; user-select: none; border-bottom: 2px solid transparent;">Avg % Changed <span class="sort-indicator">⇅</span></th>
+          </tr>
+        </thead>
+        <tbody id="reviewer-stats-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -1386,7 +1413,9 @@ $('f-sort').addEventListener('change', (e) => {
 });
 
 // ====================== Labeler Stats ======================
-function computeLabelerStats() {
+let labelerSortCol = 'avgPct', labelerSortDir = 'desc';
+
+function computeLabelerStats(sortCol, sortDir) {
   const stats = new Map();
   for (const d of allDocs) {
     if (!d.annotator) continue;
@@ -1404,28 +1433,37 @@ function computeLabelerStats() {
   for (const [annotator, data] of stats) {
     const avgPct = data.pctChanges.length > 0
       ? (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1)
-      : '—';
+      : null;
     result.push({ annotator, ...data, avgPct });
   }
+
   result.sort((a, b) => {
-    const aAvg = a.pctChanges.length > 0 ? a.pctChanges.reduce((x, y) => x + y, 0) / a.pctChanges.length : -1;
-    const bAvg = b.pctChanges.length > 0 ? b.pctChanges.reduce((x, y) => x + y, 0) / b.pctChanges.length : -1;
-    return bAvg - aAvg;
+    let aVal = a[sortCol], bVal = b[sortCol];
+    if (sortCol === 'avgPct') {
+      aVal = a.avgPct !== null ? parseFloat(a.avgPct) : -1;
+      bVal = b.avgPct !== null ? parseFloat(b.avgPct) : -1;
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    if (sortCol === 'annotator') {
+      return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+    }
+    return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
   });
   return result;
 }
 
 function renderLabelerStats() {
-  const stats = computeLabelerStats();
+  const stats = computeLabelerStats(labelerSortCol, labelerSortDir);
   const tbody = $('stats-tbody');
   tbody.innerHTML = stats.map(s => `
     <tr>
       <td>${escapeHtml(s.annotator)}</td>
       <td style="text-align: right;">${s.reviews}</td>
       <td style="text-align: right;">${s.reviewed}</td>
-      <td style="text-align: right; color: ${s.pctChanges.length > 0 ? 'var(--amber)' : 'var(--ink-dim)'};">${s.avgPct}</td>
+      <td style="text-align: right; color: ${s.pctChanges.length > 0 ? 'var(--amber)' : 'var(--ink-dim)'};">${s.avgPct || '—'}</td>
     </tr>
   `).join('');
+  updateSortIndicators('stats-table', labelerSortCol, labelerSortDir);
 }
 
 $('btn-stats').addEventListener('click', () => {
@@ -1438,6 +1476,107 @@ $('btn-stats').addEventListener('click', () => {
 
 $('btn-close-stats').addEventListener('click', () => {
   $('stats-panel').classList.remove('open');
+});
+
+// ====================== Reviewer Stats ======================
+let reviewerSortCol = 'avgPct', reviewerSortDir = 'asc';
+
+function computeReviewerStats(sortCol, sortDir) {
+  const stats = new Map();
+  for (const d of allDocs) {
+    if (!d.reviewed || !d.reviewedBy) continue;
+    if (!stats.has(d.reviewedBy)) {
+      stats.set(d.reviewedBy, { reviews: 0, pctChanges: [] });
+    }
+    const s = stats.get(d.reviewedBy);
+    s.reviews++;
+    const pct = getDocPct(d);
+    if (pct !== null && pct !== undefined) s.pctChanges.push(pct);
+  }
+
+  const result = [];
+  for (const [reviewer, data] of stats) {
+    const avgPct = data.pctChanges.length > 0
+      ? (data.pctChanges.reduce((a, b) => a + b, 0) / data.pctChanges.length).toFixed(1)
+      : null;
+    result.push({ reviewer, ...data, avgPct });
+  }
+
+  result.sort((a, b) => {
+    let aVal = a[sortCol], bVal = b[sortCol];
+    if (sortCol === 'avgPct') {
+      aVal = a.avgPct !== null ? parseFloat(a.avgPct) : Infinity;
+      bVal = b.avgPct !== null ? parseFloat(b.avgPct) : Infinity;
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    if (sortCol === 'reviewer') {
+      return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+    }
+    return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+  });
+  return result;
+}
+
+function renderReviewerStats() {
+  const stats = computeReviewerStats(reviewerSortCol, reviewerSortDir);
+  const tbody = $('reviewer-stats-tbody');
+  tbody.innerHTML = stats.map(s => `
+    <tr>
+      <td>${escapeHtml(s.reviewer)}</td>
+      <td style="text-align: right;">${s.reviews}</td>
+      <td style="text-align: right; color: ${s.pctChanges.length > 0 ? 'var(--amber)' : 'var(--ink-dim)'};">${s.avgPct || '—'}</td>
+    </tr>
+  `).join('');
+  updateSortIndicators('reviewer-stats-table', reviewerSortCol, reviewerSortDir);
+}
+
+$('btn-reviewer-stats').addEventListener('click', () => {
+  const panel = $('reviewer-stats-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    renderReviewerStats();
+  }
+});
+
+$('btn-close-reviewer-stats').addEventListener('click', () => {
+  $('reviewer-stats-panel').classList.remove('open');
+});
+
+function updateSortIndicators(tableId, col, dir) {
+  const table = $(tableId);
+  table.querySelectorAll('th').forEach(th => {
+    th.removeAttribute('data-active');
+  });
+  const activeHeader = table.querySelector(`th[data-sort="${col}"]`);
+  if (activeHeader) {
+    activeHeader.setAttribute('data-active', dir);
+  }
+}
+
+document.querySelectorAll('#stats-table th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.sort;
+    if (labelerSortCol === col) {
+      labelerSortDir = labelerSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      labelerSortCol = col;
+      labelerSortDir = 'asc';
+    }
+    renderLabelerStats();
+  });
+});
+
+document.querySelectorAll('#reviewer-stats-table th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.sort;
+    if (reviewerSortCol === col) {
+      reviewerSortDir = reviewerSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      reviewerSortCol = col;
+      reviewerSortDir = 'asc';
+    }
+    renderReviewerStats();
+  });
 });
 
 (async function main() {
