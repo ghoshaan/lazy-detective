@@ -1,3 +1,5 @@
 node_modules/
 input.ndjson
 test-decrypt.mjs
+automated_sync.py
+DRIVE_NDJSON_IDS.txt
