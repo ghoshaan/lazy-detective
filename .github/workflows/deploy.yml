@@ -3,8 +3,6 @@ name: build-and-deploy
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'public/**'
   workflow_dispatch:
   repository_dispatch:
     types: [drive-updated]
