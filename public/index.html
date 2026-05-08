@@ -396,6 +396,21 @@
           <option value="pct-asc">least changed (%)</option>
         </select>
       </div>
+      <div class="group">
+        <span class="sep">snapshot</span>
+        <select class="facet-select" id="f-snapshot"></select>
+        <button class="facet-clear" data-clear="snapshot" title="clear">×</button>
+      </div>
+      <div class="group">
+        <span class="sep">changed</span>
+        <select class="facet-select" id="f-pct-min">
+          <option value="0">any</option>
+          <option value="5">≥ 5%</option>
+          <option value="10">≥ 10%</option>
+          <option value="20">≥ 20%</option>
+          <option value="50">≥ 50%</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -443,6 +458,8 @@ let activeReview = 'all';
 let activeHistory = 'all';
 let activeRead = 'all';
 let activeSort = 'relevance'; // <-- ADD THIS
+let activeSnapshotDate = '';
+let activePctMin = 0;
 let wholeWord = false;
 const facetSel = { batch: '', annotator: '', reviewer: '' };
 let currentResults = null; // <-- ADD THIS BACK
@@ -637,10 +654,40 @@ function populateFacets() {
     });
   }
 
+  // Snapshot date dropdown — built from allDocs
+  const snapshotSel = $('f-snapshot');
+  if (snapshotSel) {
+    const dateCounts = new Map();
+    for (const d of allDocs) {
+      const ts = activityTimestamp(d);
+      if (!ts) continue;
+      const day = ts.slice(0, 10);
+      dateCounts.set(day, (dateCounts.get(day) || 0) + 1);
+    }
+    const sortedDates = [...dateCounts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    snapshotSel.innerHTML =
+      `<option value="">any</option>` +
+      sortedDates.map(([d, c]) => `<option value="${escapeAttr(d)}">${escapeHtml(d)} (${c})</option>`).join('');
+    snapshotSel.addEventListener('change', () => { activeSnapshotDate = snapshotSel.value; rerun(); });
+  }
+
+  // Pct min dropdown
+  const pctSel = $('f-pct-min');
+  if (pctSel) {
+    pctSel.addEventListener('change', () => { activePctMin = +pctSel.value; rerun(); });
+  }
+
   // Clear buttons
   document.querySelectorAll('.facet-clear').forEach(btn => {
     btn.addEventListener('click', () => {
       const f = btn.dataset.clear;
+      if (f === 'snapshot') {
+        activeSnapshotDate = '';
+        const el = $('f-snapshot');
+        if (el) el.value = '';
+        rerun();
+        return;
+      }
       facetSel[f] = '';
       const el = $(`f-${f}`);
       if (el) el.value = '';
@@ -716,6 +763,12 @@ function applyFilters(docs) {
     if (facetSel.annotator && d.annotator !== facetSel.annotator) return false;
     if (facetSel.reviewer && d.reviewedBy !== facetSel.reviewer) return false;
     if (activeHistory === 'edited' && !hasRealHistory(d.versions, d)) return false;
+    if (activeSnapshotDate) {
+      const ts = activityTimestamp(d);
+      const docDate = ts ? ts.slice(0, 10) : '';
+      if (docDate !== activeSnapshotDate) return false;
+    }
+    if (activePctMin > 0 && getDocPct(d) < activePctMin) return false;
     return true;
   });
 }function getDocPct(d) {
