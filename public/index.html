@@ -126,9 +126,9 @@
   .version-block-desc { color: var(--ink-dim); }
   .version-block.prior { background: rgba(229,115,115,0.05); padding: 8px 10px; border-radius: 2px; margin: 4px -4px; }
 
-  .diff-aligned { display: inline-flex; flex-wrap: wrap; column-gap: 0.35em; row-gap: 12px; align-items: flex-start; }
+  .diff-aligned { display: inline-flex; flex-wrap: wrap; column-gap: 0.35em; row-gap: 12px; align-items: center; }
   .da-col { display: inline-flex; flex-direction: column; }
-  .da-col > span { display: block; min-height: 1.55em; white-space: nowrap; }
+  .da-col > span, .da-eq { display: block; min-height: 1.55em; white-space: nowrap; }
   .da-eq  { color: var(--ink-faint); }
   .da-del { color: var(--red); text-decoration: line-through; }
   .da-ins { color: var(--green); }
@@ -817,11 +817,11 @@ function renderAlignedDiff(slots) {
   if (!slots.some(s => s.type !== 'eq')) return slots.map(s => escapeHtml(s.word)).join(' ');
   
   const cols = slots.map(sl => {
-    let top = '', bot = '';
     if (sl.type === 'eq') {
-      top = `<span class="da-eq">${escapeHtml(sl.word)}</span>`;
-      bot = `<span class="da-eq">${escapeHtml(sl.word)}</span>`;
-    } else if (sl.type === 'del') {
+      return `<span class="da-eq">${escapeHtml(sl.word)}</span>`;
+    }
+    let top = '', bot = '';
+    if (sl.type === 'del') {
       top = `<span class="da-del">${escapeHtml(sl.word)}</span>`;
       bot = `<span></span>`;
     } else if (sl.type === 'ins') {
