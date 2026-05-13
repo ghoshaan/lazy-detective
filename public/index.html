@@ -43,7 +43,7 @@
 
   /* Upload screen */
   .upload-view { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .upload-card { width: 100%; max-width: 480px; border: 1px solid var(--line-2); background: var(--panel); padding: 36px 32px; }
+  .upload-card { width: 100%; max-width: 480px; border: 1px solid var(--line-2); background: var(--panel); padding: 36px 32px; transition: all 0.15s; }
   .upload-title { font-family: 'Fraunces', serif; font-weight: 300; font-size: 23px; margin: 0 0 6px; }
   .upload-title em { font-style: italic; color: var(--amber); font-weight: 600; }
   .upload-sub { color: var(--ink-dim); font-size: 13px; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 24px; }
@@ -56,6 +56,9 @@
   .upload-btn { background: var(--amber); color: var(--bg); border: 1px solid var(--amber); font-family: inherit; font-size: 13px; text-transform: uppercase; letter-spacing: 0.16em; padding: 14px; cursor: pointer; font-weight: 700; margin-top: 10px; }
   .upload-btn:disabled { opacity: 0.5; cursor: progress; }
   .upload-status { font-size: 13px; color: var(--ink-dim); min-height: 1.5em; text-align: center; }
+
+  /* Drag and Drop */
+  .upload-card.drag-over { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); background: rgba(255,179,71,0.05); }
 
   /* App */
   .app { display: none; }
@@ -578,9 +581,7 @@ function populateSnapshotSelect() {
   if (snapshots.length > 0) activeSnapshot = snapshots[0].id;
 }
 
-uploadForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const files = fileInputs.files;
+async function handleFiles(files) {
   if (!files.length) return;
   $('upload-go').disabled = true;
   try {
@@ -590,7 +591,26 @@ uploadForm.addEventListener('submit', async (e) => {
     uploadStatus.textContent = 'Error processing files: ' + err.message;
     $('upload-go').disabled = false;
   }
+}
+
+uploadForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  handleFiles(fileInputs.files);
 });
+
+const uploadCard = document.querySelector('.upload-card');
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(name => {
+  uploadView.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); }, false);
+});
+['dragenter', 'dragover'].forEach(name => {
+  uploadView.addEventListener(name, () => uploadCard.classList.add('drag-over'), false);
+});
+['dragleave', 'drop'].forEach(name => {
+  uploadView.addEventListener(name, () => uploadCard.classList.remove('drag-over'), false);
+});
+uploadView.addEventListener('drop', e => {
+  handleFiles(e.dataTransfer.files);
+}, false);
 
 function showApp() { uploadView.style.display = 'none'; app.classList.add('unlocked'); }
 
