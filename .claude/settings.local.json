@@ -5,7 +5,19 @@
       "Bash(Select-Object -First 50)",
       "Bash(git ls-tree *)",
       "Bash(Get-ChildItem -Recurse -Depth 2)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(Get-Content *)",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\anniemal.ndjson\" -TotalCount 2 | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(500, $_.Length\\)\\) })",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\anniemal.ndjson\" | ForEach-Object { $_ | ConvertFrom-Json } | ForEach-Object { $proj = $_.projects.PSObject.Properties.Value | Select-Object -First 1; $labels = $proj.labels; foreach \\($l in $labels\\) { $l.label_details } } | Where-Object { $_.reviews -ne \"\" } | Select-Object -First 3 | ConvertTo-Json -Depth 5)",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\anniemal.ndjson\" | Select-Object -First 5 | ForEach-Object { $row = $_ | ConvertFrom-Json; $proj = $row.projects.PSObject.Properties.Value | Select-Object -First 1; $l = $proj.labels | Select-Object -First 1; [PSCustomObject]@{ created_by = $l.label_details.created_by; reviews = \\($l.label_details.reviews | ConvertTo-Json\\) } } | Format-List)",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\Export  project - 172_hours_atc_canada_20260504T175159Z - 5_15_2026.ndjson\" | Select-Object -First 3 | ForEach-Object { $row = $_ | ConvertFrom-Json; $proj = $row.projects.PSObject.Properties.Value | Select-Object -First 1; $l = $proj.labels | Select-Object -First 1; [PSCustomObject]@{ created_by = $l.label_details.created_by; reviews = $l.label_details.reviews } } | ConvertTo-Json -Depth 5)",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\Export  project - 172_hours_atc_canada_20260504T175159Z - 5_15_2026.ndjson\" | ForEach-Object { $row = $_ | ConvertFrom-Json; $proj = $row.projects.PSObject.Properties.Value | Select-Object -First 1; $l = $proj.labels | Select-Object -First 1; if \\($l.label_details.reviews.Count -gt 0\\) { $l.label_details.reviews | ConvertTo-Json -Depth 5; break } })",
+      "PowerShell($found = $false; Get-Content \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\Export  project - 202_hours_atc_AU_CH_IE_NL_20260427T204919Z - 5_15_2026 \\(1\\).ndjson\" | ForEach-Object { if \\($found\\) { return }; $row = $_ | ConvertFrom-Json; $proj = $row.projects.PSObject.Properties.Value | Select-Object -First 1; $l = $proj.labels | Select-Object -First 1; if \\($l -and $l.label_details.reviews.Count -gt 0\\) { $l.label_details.reviews | ConvertTo-Json -Depth 5; $found = $true } })",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\anniemal.ndjson\" -Pattern \"reviewed_by\" | Select-Object -First 3 | ForEach-Object { $_.Line.Substring\\(0, [Math]::Min\\(300, $_.Line.Length\\)\\) })",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\ghosh\\\\OneDrive\\\\Desktop\\\\NDJSONs\\\\anniemal.ndjson\" -TotalCount 1 | ConvertFrom-Json | ConvertTo-Json -Depth 10 | Select-String \"review\" -Context 2,2 | Select-Object -First 10 | ForEach-Object { $_.Line })",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
