@@ -839,7 +839,13 @@ function showPickView(namedFiles, { fromViewer = false } = {}) {
   app.classList.remove('unlocked');
   pickView.style.display = 'flex';
   const list = $('pick-file-list');
-  list.innerHTML = namedFiles.map((nf, i) => `
+  const allRow = namedFiles.length > 1
+    ? `<label style="display:flex; gap:10px; align-items:center; cursor:pointer; padding: 8px 10px; border: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); margin-bottom: 2px;" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--line-2)'">
+        <input type="checkbox" id="pick-all-cb" checked style="accent-color: var(--amber); width:14px; height:14px; flex-shrink:0;">
+        <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.12em; color:var(--ink-dim);">All</span>
+      </label>`
+    : '';
+  list.innerHTML = allRow + namedFiles.map((nf, i) => `
     <label style="display:flex; gap:10px; align-items:center; cursor:pointer; padding: 8px 10px; border: 1px solid var(--line-2); transition: border-color 0.12s;" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--line-2)'">
       <input type="checkbox" class="pick-cb" data-idx="${i}" checked style="accent-color: var(--amber); width:14px; height:14px; flex-shrink:0;">
       <span style="font-size:12px; font-family:'JetBrains Mono',ui-monospace,monospace; color:var(--ink); word-break:break-all;">${escapeHtml(nf.name)}</span>
@@ -852,12 +858,27 @@ function showPickView(namedFiles, { fromViewer = false } = {}) {
   const pickStatus = $('pick-status');
   pickStatus.textContent = '';
 
+  const getCbs = () => [...list.querySelectorAll('.pick-cb')];
+  const allCb = list.querySelector('#pick-all-cb');
+
   const updateBtn = () => {
-    const n = [...list.querySelectorAll('.pick-cb')].filter(cb => cb.checked).length;
+    const cbs = getCbs();
+    const n = cbs.filter(cb => cb.checked).length;
     loadBtn.disabled = n === 0;
     loadBtn.textContent = n === namedFiles.length ? 'Load' : n === 0 ? 'Load (select files)' : `Load (${n})`;
+    if (allCb) {
+      allCb.checked = n === cbs.length;
+      allCb.indeterminate = n > 0 && n < cbs.length;
+    }
   };
-  list.addEventListener('change', updateBtn);
+
+  if (allCb) {
+    allCb.addEventListener('change', () => {
+      getCbs().forEach(cb => { cb.checked = allCb.checked; });
+      updateBtn();
+    });
+  }
+  list.addEventListener('change', e => { if (e.target !== allCb) updateBtn(); });
   updateBtn();
 
   loadBtn.onclick = async () => {
