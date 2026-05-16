@@ -93,8 +93,7 @@
   .tag-batch { color: var(--amber); border-color: rgba(255,179,71,0.4); }
   .tag-dur { color: var(--ink-dim); border: none; padding-left: 4px; }
   .tag-reviewed { color: var(--pilot); border-color: rgba(111,207,151,0.4); cursor: help; }
-  .tag-unapproved { color: var(--red); border-color: rgba(229,115,115,0.4); opacity: 0.8; }
-  .tag-missing-history { color: var(--amber); border-color: rgba(255,179,71,0.4); opacity: 0.8; }
+  .tag-unapproved { color: var(--ink-faint); border-color: var(--line-2); opacity: 0.8; }
   .segments { display: grid; gap: 4px; margin-top: 8px; }
 
   .seg { display: grid; grid-template-columns: 56px auto 1fr; gap: 12px; align-items: baseline; padding: 4px 0; }
@@ -1246,14 +1245,9 @@ function renderDoc(d) {
     : '';
 
   const dur = displayDoc.duration ? `${displayDoc.duration.toFixed(1)}s` : '—';
-  const isMissingHistory = snapshots.length > 1 && d.snapshotStates.size === 1;
-  const missingBadge = isMissingHistory 
-    ? `<span class="tag tag-missing-history" title="Only exists in one snapshot">missing history</span>` 
-    : '';
-
   const reviewTag = displayDoc.reviewed
-    ? `<span class="tag tag-reviewed">✓ approved</span>`
-    : (displayDoc.reviewedBy ? '' : `<span class="tag tag-unapproved">unapproved</span>`);
+    ? `<span class="tag tag-reviewed">✓ reviewed</span>`
+    : `<span class="tag tag-unapproved">unreviewed</span>`;
   
   const hasTlEdit = tlEditsMap.has(String(d.id));
   const vBadge = (showHistory && (d.versions.length > 0 || hasTlEdit))
@@ -1326,7 +1320,6 @@ function renderDoc(d) {
        <div class="result-tags">
           ${vBadge}
           ${tlBadge}
-          ${missingBadge}
           ${reviewTag}
           <span class="tag-dur">${dur}</span>
         </div>
@@ -2026,8 +2019,8 @@ function exportRow(d) {
   const facets = ['airport', 'position', 'date', 'time'].filter(f => d[f]).map(f => `<span class="export-tag">${escapeHtml(d[f])}</span>`).join('');
 
   const review = d.reviewed
-    ? `<span class="export-tag reviewed">✓ approved</span>`
-    : (d.reviewedBy ? '' : `<span class="export-tag unapproved">unapproved</span>`);
+    ? `<span class="export-tag reviewed">✓ reviewed</span>`
+    : `<span class="export-tag unapproved">unreviewed</span>`;
 
   const labeler = d.annotator ? `<span class="export-tag">labeler: ${escapeHtml(d.annotator)}</span>` : '';
   const reviewer = d.reviewedBy ? `<span class="export-tag">reviewer: ${escapeHtml(d.reviewedBy)}</span>` : '';
