@@ -1,4 +1,6 @@
 node_modules/
+public/index.enc
+public/data.enc
 input.ndjson
 test-decrypt.mjs
 automated_sync.py
