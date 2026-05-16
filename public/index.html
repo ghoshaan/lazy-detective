@@ -464,11 +464,21 @@ let currentPage = 1;
 const PAGE_SIZE = 50;
 let filteredDocs = []; 
 
-function loadComments() {
-  try {
-    const saved = localStorage.getItem(COMMENTS_KEY);
-    if (saved) commentsMap = new Map(JSON.parse(saved));
-  } catch { commentsMap = new Map(); }
+async function loadComments() {
+  const fromDb = await loadCommentsFromDb();
+  if (fromDb.size > 0) {
+    commentsMap = fromDb;
+  } else {
+    // one-time migration from localStorage
+    try {
+      const saved = localStorage.getItem(COMMENTS_KEY);
+      if (saved) {
+        commentsMap = new Map(JSON.parse(saved));
+        await saveCommentsToDb();
+        localStorage.removeItem(COMMENTS_KEY);
+      }
+    } catch { commentsMap = new Map(); }
+  }
   try {
     const raw = localStorage.getItem(GENERAL_COMMENTS_KEY);
     if (raw) {
@@ -488,7 +498,7 @@ function loadComments() {
   }
 }
 function saveComments() {
-  localStorage.setItem(COMMENTS_KEY, JSON.stringify([...commentsMap]));
+  saveCommentsToDb();
 }
 
 const TL_EDITS_KEY = 'atc-search-tl-edits-v1';
@@ -847,7 +857,7 @@ async function processSnapshots(files) {
   allDocs.sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
 
   showApp();
-  loadComments();
+  await loadComments();
   loadMajor();
   loadTlEdits();
   populateFilterSuggestions();
@@ -860,16 +870,54 @@ async function processSnapshots(files) {
 // ====================== IndexedDB ======================
 
 const DB_NAME = 'lazy-detective-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const FILES_STORE = 'files';
+const COMMENTS_STORE = 'comments';
 
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = e => e.target.result.createObjectStore(FILES_STORE, { keyPath: 'name' });
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(FILES_STORE)) db.createObjectStore(FILES_STORE, { keyPath: 'name' });
+      if (!db.objectStoreNames.contains(COMMENTS_STORE)) db.createObjectStore(COMMENTS_STORE, { keyPath: 'id' });
+    };
     req.onsuccess = e => resolve(e.target.result);
     req.onerror = e => reject(e.target.error);
   });
+}
+
+async function saveCommentsToDb() {
+  try {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(COMMENTS_STORE, 'readwrite');
+      const store = tx.objectStore(COMMENTS_STORE);
+      store.clear();
+      for (const [id, val] of commentsMap) store.put({ id, ...(typeof val === 'string' ? { text: val, images: [] } : val) });
+      tx.oncomplete = () => resolve();
+      tx.onerror = e => reject(e.target.error);
+    });
+  } catch (e) { console.warn('Failed to save comments to IndexedDB:', e); }
+}
+
+async function loadCommentsFromDb() {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(COMMENTS_STORE, 'readonly');
+    return new Promise((resolve, reject) => {
+      const req = tx.objectStore(COMMENTS_STORE).getAll();
+      req.onsuccess = e => {
+        const map = new Map();
+        for (const row of e.target.result) {
+          const { id, ...rest } = row;
+          map.set(String(id), rest);
+        }
+        resolve(map);
+      };
+      req.onerror = e => reject(e.target.error);
+    });
+  } catch (e) { console.warn('Failed to load comments from IndexedDB:', e); return new Map(); }
 }
 
 async function saveFilesToDb(files) {
