@@ -2212,7 +2212,7 @@ function buildExportHtml(docs, title, commonId, commonRole) {
 </style>
 </head><body class="export-body">
 <h1 class="export-h1">ATC ${commonRole === 'labeler' ? 'Labeler' : commonRole === 'reviewer' ? 'Reviewer' : 'Labeler/Reviewer'} Audit Report</h1>
-<div class="export-meta">${commonId ? escapeHtml(commonId) + ' &middot; ' : ''}${docs.length} recording${docs.length === 1 ? '' : 's'} &middot; exported ${today}</div>
+<div class="export-meta">${docs.length} recording${docs.length === 1 ? '' : 's'} &middot; exported ${today}</div>
 ${statsHtml}
 ${genCommentHtml}
 ${docsHtml}
