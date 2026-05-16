@@ -193,7 +193,13 @@
 
   /* Filter bar */
   .filter-bar { padding: 12px 32px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; flex-wrap: wrap; }
-  .filter-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; position: relative; }
+  .filter-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--panel); border: 1px solid var(--line-2); border-top: none; z-index: 200; max-height: 220px; overflow-y: auto; display: none; }
+  .filter-suggestions.open { display: block; }
+  .filter-suggestion-item { padding: 6px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; gap: 8px; }
+  .filter-suggestion-item:hover, .filter-suggestion-item.active { background: rgba(255,179,71,0.1); color: var(--ink); }
+  .filter-suggestion-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .filter-suggestion-count { flex-shrink: 0; font-size: 10px; color: var(--ink-faint); background: var(--bg); border: 1px solid var(--line-2); padding: 1px 5px; border-radius: 2px; }
   .filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-faint); }
   .filter-input { background: var(--bg); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 7px 10px; outline: none; width: 100%; transition: border-color 0.15s; }
   .filter-input:focus { border-color: var(--amber); }
@@ -393,13 +399,13 @@
     <div class="filter-bar">
       <div class="filter-group">
         <label class="filter-label" for="filter-labeler">Labeler</label>
-        <input class="filter-input" id="filter-labeler" list="labeler-list" placeholder="Filter by labeler…" autocomplete="off">
-        <datalist id="labeler-list"></datalist>
+        <input class="filter-input" id="filter-labeler" placeholder="Filter by labeler…" autocomplete="off">
+        <div class="filter-suggestions" id="labeler-suggestions"></div>
       </div>
       <div class="filter-group">
         <label class="filter-label" for="filter-reviewer">Reviewer</label>
-        <input class="filter-input" id="filter-reviewer" list="reviewer-list" placeholder="Filter by reviewer…" autocomplete="off">
-        <datalist id="reviewer-list"></datalist>
+        <input class="filter-input" id="filter-reviewer" placeholder="Filter by reviewer…" autocomplete="off">
+        <div class="filter-suggestions" id="reviewer-suggestions"></div>
       </div>
       <button class="filter-clear" id="filter-clear-btn">Clear filters</button>
     </div>
@@ -1073,11 +1079,56 @@ $('filter-clear-btn').addEventListener('click', () => {
   rerun();
 });
 
+function buildCountMap(field) {
+  const map = new Map();
+  for (const d of allDocs) {
+    const v = d[field];
+    if (v) map.set(v, (map.get(v) || 0) + 1);
+  }
+  return map;
+}
+
+function setupFilterSuggestions(inputId, suggestionsId, field) {
+  const input = $(inputId);
+  const box = $(suggestionsId);
+  let counts = new Map();
+
+  function getOptions(query) {
+    const q = query.toLowerCase();
+    return [...counts.entries()]
+      .filter(([v]) => !q || v.toLowerCase().includes(q))
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
+
+  function renderSuggestions() {
+    const q = input.value.trim();
+    const opts = getOptions(q);
+    if (!opts.length) { box.classList.remove('open'); return; }
+    box.innerHTML = opts.map(([v, n]) =>
+      `<div class="filter-suggestion-item" data-val="${escapeAttr(v)}">` +
+      `<span class="filter-suggestion-name">${escapeHtml(v)}</span>` +
+      `<span class="filter-suggestion-count">${n}</span></div>`
+    ).join('');
+    box.classList.add('open');
+  }
+
+  input.addEventListener('focus', () => { counts = buildCountMap(field); renderSuggestions(); });
+  input.addEventListener('input', () => { counts = buildCountMap(field); renderSuggestions(); rerun(); });
+  input.addEventListener('blur', () => setTimeout(() => box.classList.remove('open'), 150));
+
+  box.addEventListener('mousedown', e => {
+    const item = e.target.closest('.filter-suggestion-item');
+    if (!item) return;
+    e.preventDefault();
+    input.value = item.dataset.val;
+    box.classList.remove('open');
+    rerun();
+  });
+}
+
 function populateFilterSuggestions() {
-  const labelers = [...new Set(allDocs.map(d => d.annotator).filter(Boolean))].sort();
-  const reviewers = [...new Set(allDocs.map(d => d.reviewedBy).filter(Boolean))].sort();
-  $('labeler-list').innerHTML = labelers.map(v => `<option value="${escapeAttr(v)}">`).join('');
-  $('reviewer-list').innerHTML = reviewers.map(v => `<option value="${escapeAttr(v)}">`).join('');
+  setupFilterSuggestions('filter-labeler', 'labeler-suggestions', 'annotator');
+  setupFilterSuggestions('filter-reviewer', 'reviewer-suggestions', 'reviewedBy');
 }
 
 function rerun() {
