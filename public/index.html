@@ -675,33 +675,42 @@ function sameSnapshot(a, b) {
 
 // ====================== ADSB URL Builder ======================
 
+const _AIRPORT_IGNORE = new Set(['NY','APP','DEP','CENTER','CENTRE','CENT','RADAR','TOWER','GROUND','CTR','FINAL','FINA','FREQ','VAD','GND','TWR','APPR','ARR','ARRIVAL','DEPARTURE','V2']);
+
+function extractAirportFromKey(s) {
+  const u = String(s || '').toUpperCase();
+  const first = u.split('-')[0]?.trim();
+  const firstLetters = first.replace(/[^A-Z]/g, '');
+  if (/^[A-Z]{4}\d*$/.test(first) && !_AIRPORT_IGNORE.has(firstLetters)) return firstLetters.slice(0, 4);
+  const dateSplit = u.split(/-(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)-/);
+  const parts = (dateSplit[0] || u).split('-').filter(Boolean);
+  for (const rawPart of parts) {
+    const p = rawPart.toUpperCase();
+    const letters = p.replace(/[^A-Z]/g, '');
+    if (_AIRPORT_IGNORE.has(p) || _AIRPORT_IGNORE.has(letters) || letters.startsWith('FINA')) continue;
+    const icao = p.match(/^([A-Z]{4})\d*$/);
+    if (icao && !_AIRPORT_IGNORE.has(icao[1])) return icao[1];
+    if (/^[A-Z]{3}$/.test(p) && !_AIRPORT_IGNORE.has(p)) return p;
+  }
+  const domestic = u.match(/(?<![A-Z])(?:K[A-Z]{3}|PA[A-Z]{2}|PH[A-Z]{2}|P[A-Z]{3}|C[A-Z]{3})(?![A-Z])/);
+  return domestic ? domestic[0] : null;
+}
+
+function buildAipChartsUrl(rawKey) {
+  const icao = extractAirportFromKey(rawKey);
+  if (!icao || !/^[A-Z]{4}$/.test(icao)) return null;
+  return `https://ghoshaan.github.io/aip-charts/${encodeURIComponent(icao)}`;
+}
+
 function buildAdsbReplayUrl(rawKey) {
   const raw = String(rawKey || '').trim();
   if (!raw) return null;
 
   const upper = raw.toUpperCase();
   const MONTHS = { JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12' };
-  const IGNORE = new Set(['NY','APP','DEP','CENTER','CENTRE','CENT','RADAR','TOWER','GROUND','CTR','FINAL','FINA','FREQ','VAD','GND','TWR','APPR','ARR','ARRIVAL','DEPARTURE','V2']);
   const BAD = new Set(['CENT','CENTER','CENTRE','CTR','APP','DEP','TWR','GND','RADAR','FINAL','FINA']);
 
-  function extractAirport(s) {
-    const u = String(s || '').toUpperCase();
-    const first = u.split('-')[0]?.trim();
-    const firstLetters = first.replace(/[^A-Z]/g, '');
-    if (/^[A-Z]{4}\d*$/.test(first) && !IGNORE.has(firstLetters)) return firstLetters.slice(0, 4);
-    const dateSplit = u.split(/-(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)-/);
-    const parts = (dateSplit[0] || u).split('-').filter(Boolean);
-    for (const rawPart of parts) {
-      const p = rawPart.toUpperCase();
-      const letters = p.replace(/[^A-Z]/g, '');
-      if (IGNORE.has(p) || IGNORE.has(letters) || letters.startsWith('FINA')) continue;
-      const icao = p.match(/^([A-Z]{4})\d*$/);
-      if (icao && !IGNORE.has(icao[1])) return icao[1];
-      if (/^[A-Z]{3}$/.test(p) && !IGNORE.has(p)) return p;
-    }
-    const domestic = u.match(/(?<![A-Z])(?:K[A-Z]{3}|PA[A-Z]{2}|PH[A-Z]{2}|P[A-Z]{3}|C[A-Z]{3})(?![A-Z])/);
-    return domestic ? domestic[0] : null;
-  }
+  const extractAirport = extractAirportFromKey;
 
   let replay = null, airport = null;
 
@@ -1166,13 +1175,18 @@ function renderDoc(d) {
     ? `<a class="adsb-btn" href="${escapeAttr(adsbUrl)}" target="_blank" rel="noopener" title="Open ADSB replay" aria-label="Open ADSB replay"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8 Q5 3 8 8 Q11 13 14 8"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg></a>`
     : '';
 
+  const aipUrl = displayDoc.key ? buildAipChartsUrl(displayDoc.key) : null;
+  const aipEl = aipUrl
+    ? `<a class="adsb-btn" href="${escapeAttr(aipUrl)}" target="_blank" rel="noopener" title="Open AIP charts" aria-label="Open AIP charts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="10" height="12" rx="1"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="10.5" x2="8.5" y2="10.5"/></svg></a>`
+    : '';
+
   const isSel = selection.has(d.id) ? 'checked' : '';
   const cbEl = `<input type="checkbox" class="select-cb" data-sel="${escapeAttr(String(d.id))}" ${isSel}>`;
 
   return `
     <article class="result" data-docid="${escapeAttr(String(d.id))}">
       <header class="result-head">
-        <div class="result-key-wrap">${cbEl}<span class="result-key-inner">${keyEl}${copyKeyEl}${adsbEl}</span></div>
+        <div class="result-key-wrap">${cbEl}<span class="result-key-inner">${keyEl}${copyKeyEl}${adsbEl}${aipEl}</span></div>
        <div class="result-tags">
           ${vBadge}
           ${tlBadge}
