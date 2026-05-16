@@ -157,6 +157,17 @@
   .copy-key svg { width: 12px; height: 12px; display: block; }
   .copy-key:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
   .copy-key.copied { color: var(--pilot); border-color: rgba(111,207,151,0.4); }
+  .adsb-btn {
+    flex-shrink: 0; user-select: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; padding: 0; border: 1px solid transparent;
+    color: var(--ink-faint); background: transparent;
+    vertical-align: middle;
+    transition: color 0.15s, border-color 0.15s;
+    text-decoration: none;
+  }
+  .adsb-btn svg { width: 12px; height: 12px; display: block; }
+  .adsb-btn:hover { color: var(--amber); border-color: rgba(255,179,71,0.4); }
   .result-key-inner { flex: 1; min-width: 0; }
   .result-key-inner .result-key { display: inline; flex: none; }
 
@@ -662,6 +673,81 @@ function sameSnapshot(a, b) {
          (a.annotator || null) === (b.annotator || null);
 }
 
+// ====================== ADSB URL Builder ======================
+
+function buildAdsbReplayUrl(rawKey) {
+  const raw = String(rawKey || '').trim();
+  if (!raw) return null;
+
+  const upper = raw.toUpperCase();
+  const MONTHS = { JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12' };
+  const IGNORE = new Set(['NY','APP','DEP','CENTER','CENTRE','CENT','RADAR','TOWER','GROUND','CTR','FINAL','FINA','FREQ','VAD','GND','TWR','APPR','ARR','ARRIVAL','DEPARTURE','V2']);
+  const BAD = new Set(['CENT','CENTER','CENTRE','CTR','APP','DEP','TWR','GND','RADAR','FINAL','FINA']);
+
+  function extractAirport(s) {
+    const u = String(s || '').toUpperCase();
+    const first = u.split('-')[0]?.trim();
+    const firstLetters = first.replace(/[^A-Z]/g, '');
+    if (/^[A-Z]{4}\d*$/.test(first) && !IGNORE.has(firstLetters)) return firstLetters.slice(0, 4);
+    const dateSplit = u.split(/-(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)-/);
+    const parts = (dateSplit[0] || u).split('-').filter(Boolean);
+    for (const rawPart of parts) {
+      const p = rawPart.toUpperCase();
+      const letters = p.replace(/[^A-Z]/g, '');
+      if (IGNORE.has(p) || IGNORE.has(letters) || letters.startsWith('FINA')) continue;
+      const icao = p.match(/^([A-Z]{4})\d*$/);
+      if (icao && !IGNORE.has(icao[1])) return icao[1];
+      if (/^[A-Z]{3}$/.test(p) && !IGNORE.has(p)) return p;
+    }
+    const domestic = u.match(/(?<![A-Z])(?:K[A-Z]{3}|PA[A-Z]{2}|PH[A-Z]{2}|P[A-Z]{3}|C[A-Z]{3})(?![A-Z])/);
+    return domestic ? domestic[0] : null;
+  }
+
+  let replay = null, airport = null;
+
+  // Flex dashed: -Sep-14-2025-0726Z
+  let m = upper.match(/-([A-Z]{3})-(\d{1,2})-(\d{4})-(\d{4})Z\b/);
+  if (m && MONTHS[m[1]]) {
+    const day = m[2].padStart(2,'0'), year = m[3], hr = m[4].slice(0,2), mn = m[4].slice(2,4);
+    replay = `${year}-${MONTHS[m[1]]}-${day}-${hr}:${mn}`;
+    airport = extractAirport(raw);
+  }
+
+  // IATA compact: SJC-20260414131831_...
+  if (!replay) {
+    m = raw.match(/\b[A-Za-z]{2,4}-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}_/i);
+    if (m) { replay = `${m[1]}-${m[2]}-${m[3]}-${m[4]}:${m[5]}`; airport = extractAirport(raw); }
+  }
+
+  // New compact: 250914_0726_115.wav
+  if (!replay) {
+    m = raw.match(/\b(\d{2})(\d{2})(\d{2})_(\d{2})(\d{2})_\d+\.wav\b/i);
+    if (m) {
+      const yy = Number(m[1]);
+      replay = `${yy >= 70 ? 1900 + yy : 2000 + yy}-${m[2]}-${m[3]}-${m[4]}:${m[5]}`;
+      airport = extractAirport(raw);
+    }
+  }
+
+  // Old named: Sep-14-2025-0726Z
+  if (!replay) {
+    m = raw.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{1,2})-(\d{4})-(\d{4})Z/i);
+    if (m) {
+      const mo = MONTHS[m[1].toUpperCase()];
+      if (mo) {
+        replay = `${m[3]}-${mo}-${String(m[2]).padStart(2,'0')}-${m[4].slice(0,2)}:${m[4].slice(2,4)}`;
+        airport = extractAirport(raw);
+      }
+    }
+  }
+
+  if (!replay) return null;
+
+  if (airport && BAD.has(airport.toUpperCase())) airport = null;
+  const airportParam = /^[A-Z]{3,4}$/.test(airport || '') ? `&airport=${encodeURIComponent(airport)}` : '';
+  return `https://globe.adsbexchange.com/?replay=${encodeURIComponent(replay)}${airportParam}`;
+}
+
 // ====================== File Handling ======================
 
 async function readNDJSON(file, batchName, snapshotDate) {
@@ -1075,13 +1161,18 @@ function renderDoc(d) {
     ? `<span class="copy-key" data-copy="${escapeAttr(displayDoc.key)}" title="Copy global key" role="button" aria-label="Copy global key"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h7"/></svg></span>`
     : '';
 
+  const adsbUrl = displayDoc.key ? buildAdsbReplayUrl(displayDoc.key) : null;
+  const adsbEl = adsbUrl
+    ? `<a class="adsb-btn" href="${escapeAttr(adsbUrl)}" target="_blank" rel="noopener" title="Open ADSB replay" aria-label="Open ADSB replay"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8 Q5 3 8 8 Q11 13 14 8"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg></a>`
+    : '';
+
   const isSel = selection.has(d.id) ? 'checked' : '';
   const cbEl = `<input type="checkbox" class="select-cb" data-sel="${escapeAttr(String(d.id))}" ${isSel}>`;
 
   return `
     <article class="result" data-docid="${escapeAttr(String(d.id))}">
       <header class="result-head">
-        <div class="result-key-wrap">${cbEl}<span class="result-key-inner">${keyEl}${copyKeyEl}</span></div>
+        <div class="result-key-wrap">${cbEl}<span class="result-key-inner">${keyEl}${copyKeyEl}${adsbEl}</span></div>
        <div class="result-tags">
           ${vBadge}
           ${tlBadge}
