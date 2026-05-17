@@ -38,8 +38,8 @@
   .entry-by { color: var(--ink-dim); font-size: 14px; font-style: italic; }
   .entry-link { color: var(--amber); text-decoration: none; font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; }
   .entry-link:hover { text-decoration: underline; }
-  .entry-del { background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 20px; padding: 0; line-height: 1; margin-left: auto; opacity: 0.4; font-family: inherit; }
-  .entry-del:hover { color: #e55; opacity: 1; }
+  .entry-del { background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 22px; padding: 0 8px; line-height: 1; margin-left: auto; opacity: 0.3; font-family: inherit; transition: all 0.1s; }
+  .entry-del:hover { color: #f55; opacity: 1; transform: scale(1.1); }
 
   .empty { padding: 48px 28px; color: var(--ink-dim); font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; }
   .loading { padding: 48px 28px; color: var(--ink-dim); font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; }
@@ -102,7 +102,7 @@ function render(q) {
       <span class="entry-date">${esc(e.date)}</span>
       ${e.preparedBy ? `<span class="entry-by">by ${esc(e.preparedBy)}</span>` : ''}
       <a class="entry-link" href="${esc(e.driveUrl)}" target="_blank" rel="noopener">open pdf</a>
-      <button class="entry-del" onclick="deleteEntry(${JSON.stringify(e.fileId || e.filename)})" title="Remove from directory">×</button>
+      <button class="entry-del" onclick='deleteEntry(${JSON.stringify(e.fileId || e.filename)})' title="Remove from directory">×</button>
     </div>
   `).join('');
 }
