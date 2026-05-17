@@ -748,9 +748,10 @@ function flatten(row, batchName, snapshotDate) {
       for (const sub of c?.radio_answer?.classifications ?? []) {
         const m = sub?.value?.match(/speaker_(\d+)$/);
         if (!m) continue;
-        const speakerLabel = `Speaker ${m[1]}`;
+        const spNum = m[1];
+        const speakerLabel = `Speaker ${spNum}`;
         const role = sub?.radio_answer?.value ?? sub?.radio_answer?.name ?? 'unknown';
-        speakerRoles[speakerLabel] = String(role).toLowerCase();
+        speakerRoles[speakerLabel] = { role: String(role).toLowerCase(), spId: `S${spNum}` };
       }
     }
   }
@@ -784,7 +785,7 @@ function flatten(row, batchName, snapshotDate) {
   const segments = [];
   for (const [fid, ranges] of Object.entries(segmentsBlock)) {
     const speakerLabel = featureToSpeaker[fid] ?? 'Speaker ?';
-    const role = speakerRoles[speakerLabel] ?? 'unknown';
+    const spData = speakerRoles[speakerLabel] || { role: 'unknown', spId: '?' };
     for (const [start, end] of ranges) {
       const texts = featureTextByStart[fid] ?? {};
       let text = texts[start] ?? texts[end];
@@ -792,7 +793,7 @@ function flatten(row, batchName, snapshotDate) {
         const uniq = [...new Set(Object.values(texts))];
         text = uniq[0] ?? '';
       }
-      segments.push({ role, start, end, text: String(text).trim() });
+      segments.push({ role: spData.role, spId: spData.spId, start, end, text: String(text).trim() });
     }
   }
   segments.sort((a, b) => a.start - b.start);
@@ -987,8 +988,8 @@ async function processSnapshots(files) {
     }
 
     const initial = collapsed[0];
-    const { pct } = wordDiff(initial.transcript, primary.transcript);
-    processedRows.push({ ...primary, versions, snapshotStates, pct });
+    const diffResult = wordDiff(initial.transcript, primary.transcript);
+    processedRows.push({ ...primary, versions, snapshotStates, ...diffResult });
   }
 
   allDocs = processedRows;
@@ -1412,7 +1413,7 @@ function renderDoc(d) {
     : `<span class="tag tag-unapproved">unreviewed</span>`;
   
   const hasTlEdit = tlEditsMap.has(String(d.id));
-  const suppressHistory = !hasTlEdit && d.versions.length > 0 && !d.reviewedBy && (d.pct || 0) === 0;
+  const suppressHistory = !hasTlEdit && d.versions.length > 0 && !d.reviewedBy && (d.pct || 0) === 0 && !d.hasPunctChange;
   const vBadge = (showHistory && !suppressHistory && (d.versions.length > 0 || hasTlEdit))
     ? `<button class="version-badge" data-vid="${escapeAttr(String(d.id))}">&#x1F4DC;${d.versions.length > 0 ? ' ' + d.versions.length : ''}</button>`
     : '';
@@ -1420,10 +1421,12 @@ function renderDoc(d) {
     ? `<button class="tag tag-tl-edit${hasTlEdit ? ' has-edit' : ''}" data-tlbtn="${escapeAttr(String(d.id))}">${hasTlEdit ? 'Edit ✎' : 'Edit'}</button>`
     : '';
 
+  const punctTag = d.hasPunctChange ? `<span class="tag" style="color:var(--ink-dim);border-color:var(--line-2);">punctuation</span>` : '';
+
   const segs = (displayDoc.segments || []).map(s => `
     <div class="seg">
       <span class="seg-time">${formatMs(s.start)}</span>
-      <span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span>
+      <span class="seg-role ${s.role || 'unknown'}">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}${escapeHtml(s.role || '?')}</span>
       <span class="seg-text">${renderText(s.text)}</span>
     </div>
   `).join('');
@@ -1538,7 +1541,7 @@ function renderTlEditor(d) {
 
 // ====================== Diff Logic ======================
 
-const normWord = w => w.replace(/^[.,]+|[.,]+$/g, '');
+const normWord = w => w.replace(/[.,!?;:()\[\]{}"']/g, '');
 function lcsWords(a, b) {
   const m = a.length, n = b.length;
   if (m * n > 60000) return null;
@@ -1575,8 +1578,16 @@ function alignedWordDiff(oldText, newText) {
   ops.reverse();
   let k = 0;
   while (k < ops.length) {
-    if (ops[k].type === 'eq') { slots.push({ type: 'eq', word: ow[ops[k].oi] }); k++; }
-    else {
+    if (ops[k].type === 'eq') {
+      const owrd = ow[ops[k].oi];
+      const nwrd = nw[ops[k].ni];
+      if (owrd === nwrd) {
+        slots.push({ type: 'eq', word: owrd });
+      } else {
+        slots.push({ type: 'pair', oldWord: owrd, newWord: nwrd });
+      }
+      k++;
+    } else {
       const dels = [], ins = [];
       while (k < ops.length && ops[k].type !== 'eq') {
         if (ops[k].type === 'del') dels.push(ow[ops[k].oi]); else ins.push(nw[ops[k].ni]);
@@ -1618,13 +1629,15 @@ function renderAlignedDiff(slots) {
 function wordDiff(oldText, newText) {
   const ow = (oldText || '').split(/\s+/).filter(Boolean);
   const nw = (newText || '').split(/\s+/).filter(Boolean);
-  if (!ow.length && !nw.length) return { pct: 0 };
+  if (!ow.length && !nw.length) return { pct: 0, hasPunctChange: false };
   const on = ow.map(normWord), nn = nw.map(normWord);
   const dp = lcsWords(on, nn);
-  if (!dp) return { pct: 100 };
+  if (!dp) return { pct: 100, hasPunctChange: oldText !== newText };
   const lcsLen = dp[on.length][nn.length];
   const maxLen = Math.max(on.length, nn.length);
-  return { pct: Math.round((1 - lcsLen / maxLen) * 100) };
+  const pct = Math.round((1 - lcsLen / maxLen) * 100);
+  const hasPunctChange = oldText !== newText && on.join(' ') === nn.join(' ');
+  return { pct, hasPunctChange };
 }
 
 function matchSegments(oldSegs, newSegs) {
@@ -1663,25 +1676,25 @@ function renderVersionSegs(segments, currentSegments) {
   for (const { old: s, cur } of pairs) {
     while (ii < sortedInserted.length && sortedInserted[ii].start < s.start) {
       const n = sortedInserted[ii++];
-      parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(n.start)}</span><span class="seg-role ${n.role}">${escapeHtml(n.role)}</span><span class="seg-text"><mark class="diff-add">${renderText(n.text)}</mark></span></div>`);
+      parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(n.start)}</span><span class="seg-role ${n.role}">${n.spId ? `<b style="opacity:0.5;margin-right:4px;">${n.spId}</b>` : ''}${escapeHtml(n.role)}</span><span class="seg-text"><mark class="diff-add">${renderText(n.text)}</mark></span></div>`);
     }
     if (cur) {
       const textHtml = renderAlignedDiff(alignedWordDiff(s.text, cur.text));
       const oldRole = s.role || 'unknown', newRole = cur.role || 'unknown';
       const roleHtml = oldRole !== newRole 
-        ? `<span class="seg-role"><mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(cur.role)}</mark></span>`
-        : `<span class="seg-role ${oldRole}">${escapeHtml(s.role)}</span>`;
+        ? `<span class="seg-role">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}<mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(cur.role)}</mark></span>`
+        : `<span class="seg-role ${oldRole}">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}${escapeHtml(s.role)}</span>`;
       const timeHtml = Math.round(s.start) !== Math.round(cur.start)
         ? `<span class="time-diff"><mark class="diff-del">${formatMs(s.start)}</mark><mark class="diff-add">${formatMs(cur.start)}</mark></span>`
         : formatMs(s.start);
       parts.push(`<div class="seg"><span class="seg-time">${timeHtml}</span>${roleHtml}<span class="seg-text">${textHtml}</span></div>`);
     } else {
-      parts.push(`<div class="seg seg-removed"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role}">${escapeHtml(s.role)}</span><span class="seg-text"><mark class="diff-del">${renderText(s.text)}</mark></span></div>`);
+      parts.push(`<div class="seg seg-removed"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role}">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}${escapeHtml(s.role)}</span><span class="seg-text"><mark class="diff-del">${renderText(s.text)}</mark></span></div>`);
     }
   }
   while (ii < sortedInserted.length) {
     const n = sortedInserted[ii++];
-    parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(n.start)}</span><span class="seg-role ${n.role}">${escapeHtml(n.role)}</span><span class="seg-text"><mark class="diff-add">${renderText(n.text)}</mark></span></div>`);
+    parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(n.start)}</span><span class="seg-role ${n.role}">${n.spId ? `<b style="opacity:0.5;margin-right:4px;">${n.spId}</b>` : ''}${escapeHtml(n.role)}</span><span class="seg-text"><mark class="diff-add">${renderText(n.text)}</mark></span></div>`);
   }
   return `<div class="segments">${parts.join('')}</div>`;
 }
@@ -1698,13 +1711,13 @@ function renderIndexedSegDiff(oldSegs, newSegs) {
       const textHtml = renderAlignedDiff(alignedWordDiff(s.text, t.text));
       const oldRole = s.role || 'unknown', newRole = t.role || 'unknown';
       const roleHtml = oldRole !== newRole
-        ? `<span class="seg-role"><mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(t.role)}</mark></span>`
-        : `<span class="seg-role ${oldRole}">${escapeHtml(s.role)}</span>`;
+        ? `<span class="seg-role">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}<mark class="diff-del">${escapeHtml(s.role)}</mark><mark class="diff-add">${escapeHtml(t.role)}</mark></span>`
+        : `<span class="seg-role ${oldRole}">${t.spId ? `<b style="opacity:0.5;margin-right:4px;">${t.spId}</b>` : ''}${escapeHtml(t.role)}</span>`;
       parts.push(`<div class="seg"><span class="seg-time">${formatMs(t.start)}</span>${roleHtml}<span class="seg-text">${textHtml}</span></div>`);
     } else if (s) {
-      parts.push(`<div class="seg seg-removed"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span><span class="seg-text"><mark class="diff-del">${renderText(s.text)}</mark></span></div>`);
+      parts.push(`<div class="seg seg-removed"><span class="seg-time">${formatMs(s.start)}</span><span class="seg-role ${s.role || 'unknown'}">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}${escapeHtml(s.role || '?')}</span><span class="seg-text"><mark class="diff-del">${renderText(s.text)}</mark></span></div>`);
     } else {
-      parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(t.start)}</span><span class="seg-role ${t.role || 'unknown'}">${escapeHtml(t.role || '?')}</span><span class="seg-text"><mark class="diff-add">${renderText(t.text)}</mark></span></div>`);
+      parts.push(`<div class="seg seg-added"><span class="seg-time">${formatMs(t.start)}</span><span class="seg-role ${t.role || 'unknown'}">${t.spId ? `<b style="opacity:0.5;margin-right:4px;">${t.spId}</b>` : ''}${escapeHtml(t.role || '?')}</span><span class="seg-text"><mark class="diff-add">${renderText(t.text)}</mark></span></div>`);
     }
   }
   return `<div class="segments">${parts.join('')}</div>`;
@@ -1810,6 +1823,28 @@ results.addEventListener('input', e => {
 
 results.addEventListener('paste', handlePaste);
 
+async function downsizeImage(dataUrl, maxWidth = 1200, maxHeight = 1200, quality = 0.7) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w <= maxWidth && h <= maxHeight) { resolve(dataUrl); return; }
+      if (w > h) {
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+      } else {
+        if (h > maxHeight) { w = Math.round(w * maxHeight / h); h = maxHeight; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function handlePaste(e) {
   const input = e.target.closest('.comment-input');
   if (!input) return;
@@ -1819,8 +1854,8 @@ function handlePaste(e) {
     if (item.type.indexOf('image') !== -1) {
       const file = item.getAsFile();
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target.result;
+      reader.onload = async (event) => {
+        const dataUrl = await downsizeImage(event.target.result);
         if (input.id === 'general-comment') {
           generalCommentImages = [...generalCommentImages, dataUrl];
           saveGeneralComment();
@@ -2219,7 +2254,7 @@ async function generatePdfBlob(htmlString, title) {
     margin: [0.4, 0.4, 0.4, 0.4],
     filename: `${title}.pdf`,
     html2canvas: { 
-      scale: 2, 
+      scale: 1.5, 
       useCORS: true, 
       backgroundColor: '#ffffff',
       scrollY: 0,
@@ -2248,6 +2283,20 @@ async function uploadPdfToDrive(blob, filename) {
 
 function buildExportMeta() {
   if (!selection.size) return null;
+
+  let tlName = getUserName();
+  if (!tlName) {
+    tlName = prompt('Please enter your name for the audit report:');
+    if (tlName) {
+      setUserName(tlName);
+      const inp = $('user-name-input');
+      if (inp) inp.value = tlName;
+      updateNameBtn();
+    } else {
+      return null; // Abort export if no name is provided
+    }
+  }
+
   const docs = allDocs.filter(d => selection.has(d.id));
   docs.sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
 
@@ -2264,7 +2313,6 @@ function buildExportMeta() {
 
   const today = new Date().toISOString().slice(0, 10);
   const exportTitle = `${commonId} ${today}`;
-  const tlName = getUserName();
   return { docs, exportTitle, commonId, commonRole, tlName };
 }
 
@@ -2458,13 +2506,18 @@ function exportRow(d) {
 
   const hasVersions = !!(d.versions && d.versions.length);
   let pctTag = '';
+  let punctTag = '';
   if (hasVersions) {
-    const { pct } = wordDiff(d.versions[0].transcript, finalTranscript);
+    const { pct, hasPunctChange } = wordDiff(d.versions[0].transcript, finalTranscript);
     if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
+    if (hasPunctChange) punctTag = `<span class="export-tag">punctuation</span>`;
   } else if (tlEdit) {
     const labelerTranscript = (d.segments || []).map(s => s.text).join(' ');
-    const { pct } = wordDiff(labelerTranscript, finalTranscript);
+    const { pct, hasPunctChange } = wordDiff(labelerTranscript, finalTranscript);
     if (pct > 0) pctTag = `<span>${pct}% changed</span>`;
+    if (hasPunctChange) punctTag = `<span class="export-tag">punctuation</span>`;
+  } else if (d.hasPunctChange) {
+    punctTag = `<span class="export-tag">punctuation</span>`;
   }
   const majorTag = majorSet.has(String(d.id)) ? `<span class="export-tag major">&#9873; major</span>` : '';
   const tlTag = tlEdit ? `<span class="export-tag" style="color:#7a3fb0;font-weight:600;">TL edited</span>` : '';
@@ -2472,7 +2525,7 @@ function exportRow(d) {
   const segs = (finalSegments || []).map(s => `
     <div class="export-seg">
       <span class="export-seg-time">${formatMs(s.start)}</span>
-      <span class="export-seg-role ${s.role || 'unknown'}">${escapeHtml(s.role || '?')}</span>
+      <span class="export-seg-role ${s.role || 'unknown'}">${s.spId ? `<b style="opacity:0.5;margin-right:4px;">${s.spId}</b>` : ''}${escapeHtml(s.role || '?')}</span>
       <span class="export-seg-text">${renderText(s.text)}</span>
     </div>
   `).join('');
@@ -2511,7 +2564,7 @@ function exportRow(d) {
 
   return `<div class="export-row">
     ${keyEl}
-    <div class="export-tags">${majorTag}${tlTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}</div>
+    <div class="export-tags">${majorTag}${tlTag}${review}${labeler}${reviewer}${facets}<span>${dur}</span>${pctTag}${punctTag}</div>
     ${segsHtml}
     ${versionsHtml}
     ${commentHtml}
@@ -2547,12 +2600,13 @@ function setGhToken(t) { localStorage.setItem(GH_TOKEN_KEY, t.trim()); }
 function clearGhToken() { localStorage.removeItem(GH_TOKEN_KEY); }
 
 function bufferToBase64(buf) {
-  const bytes = new Uint8Array(buf);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(new Blob([buf]));
+  });
 }
-function textToBase64(str) { return bufferToBase64(new TextEncoder().encode(str)); }
+async function textToBase64(str) { return await bufferToBase64(new TextEncoder().encode(str)); }
 function base64ToBuffer(b64) {
   const bin = atob(b64.replace(/\n/g, ''));
   const bytes = new Uint8Array(bin.length);
@@ -2594,12 +2648,13 @@ async function uploadSession(sessionId, fileRecords, annotJson, metaJson) {
   // Create all blobs in parallel (these are immutable and don't depend on branch state)
   const blobEntries = await Promise.all([
     ...fileRecords.map(async ({ name, buffer }) => {
-      const blob = await ghApi('/git/blobs', 'POST', { content: bufferToBase64(buffer), encoding: 'base64' });
+      const b64 = await bufferToBase64(buffer);
+      const blob = await ghApi('/git/blobs', 'POST', { content: b64, encoding: 'base64' });
       return { path: `snapshots/${sessionId}/${name}`, sha: blob.sha };
     }),
-    ghApi('/git/blobs', 'POST', { content: textToBase64(annotJson), encoding: 'base64' })
+    textToBase64(annotJson).then(b64 => ghApi('/git/blobs', 'POST', { content: b64, encoding: 'base64' }))
       .then(b => ({ path: `snapshots/${sessionId}/annotations.json`, sha: b.sha })),
-    ghApi('/git/blobs', 'POST', { content: textToBase64(metaJson), encoding: 'base64' })
+    textToBase64(metaJson).then(b64 => ghApi('/git/blobs', 'POST', { content: b64, encoding: 'base64' }))
       .then(b => ({ path: `snapshots/${sessionId}/meta.json`, sha: b.sha })),
   ]);
 
@@ -2633,12 +2688,22 @@ async function uploadSession(sessionId, fileRecords, annotJson, metaJson) {
   }
 }
 
-function serializeAnnotations() {
+function serializeAnnotations(activeIds = null) {
+  let comments = [...commentsMap.entries()];
+  let major = [...majorSet];
+  let tlEdits = [...tlEditsMap.entries()];
+
+  if (activeIds) {
+    comments = comments.filter(([id]) => activeIds.has(String(id)));
+    major = major.filter(id => activeIds.has(String(id)));
+    tlEdits = tlEdits.filter(([id]) => activeIds.has(String(id)));
+  }
+
   return JSON.stringify({
     version: 1,
-    comments: [...commentsMap.entries()],
-    major: [...majorSet],
-    tlEdits: [...tlEditsMap.entries()],
+    comments,
+    major,
+    tlEdits,
     generalComment: { text: $('general-comment').value, images: generalCommentImages },
   });
 }
@@ -2754,7 +2819,13 @@ $('share-btn').addEventListener('click', async () => {
   btn.style.pointerEvents = 'none';
 
   try {
-    const files = await loadFilesFromDb();
+    const activeBatches = new Set();
+    filteredDocs.forEach(d => activeBatches.add(d.batch));
+    allDocs.filter(d => selection.has(d.id)).forEach(d => activeBatches.add(d.batch));
+
+    const allFiles = await loadFilesFromDb();
+    const files = allFiles.filter(f => activeBatches.has(f.name));
+
     if (!files.length) { alert('No data loaded to share.'); return; }
 
     const sessionId = genSessionId();
@@ -2763,7 +2834,11 @@ $('share-btn').addEventListener('click', async () => {
       buffer: await f.arrayBuffer()
     })));
 
-    const annotJson = serializeAnnotations();
+    const activeIds = new Set();
+    filteredDocs.forEach(d => activeIds.add(String(d.id)));
+    allDocs.filter(d => selection.has(d.id)).forEach(d => activeIds.add(String(d.id)));
+
+    const annotJson = serializeAnnotations(activeIds);
     const metaJson = JSON.stringify({
       sessionId,
       createdAt: new Date().toISOString(),
