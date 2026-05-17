@@ -4,7 +4,7 @@ const GH_REPO = 'lazy-detective';
 const DIRECTORY_PATH = 'public/directory.json';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -51,8 +51,8 @@ export default {
         ...(preparedBy ? { preparedBy } : {}),
       };
 
-      // Non-fatal — directory update failure should not fail the upload
-      updateDirectory(env, entry).catch(err => console.error('directory update failed:', err));
+      // Non-fatal — use waitUntil so the update isn't killed when the response returns
+      ctx.waitUntil(updateDirectory(env, entry).catch(err => console.error('directory update failed:', err)));
 
       return jsonResponse({ success: true, fileId: result.id, name: result.name, url: driveUrl }, 200, corsHeaders);
     } catch (err) {
