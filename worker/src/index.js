@@ -1,4 +1,7 @@
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const GH_OWNER = 'ghoshaan';
+const GH_REPO = 'lazy-detective';
+const DIRECTORY_PATH = 'public/directory.json';
 
 export default {
   async fetch(request, env) {
@@ -21,6 +24,7 @@ export default {
       const formData = await request.formData();
       const file = formData.get('file');
       const filename = formData.get('filename') || 'audit-report.pdf';
+      const preparedBy = formData.get('preparedBy') || '';
 
       if (!file) {
         return jsonResponse({ error: 'No file provided' }, 400, corsHeaders);
@@ -34,12 +38,23 @@ export default {
       const pdfBuffer = await file.arrayBuffer();
       const result = await uploadToDrive(accessToken, pdfBuffer, filename, env.FOLDER_ID);
 
-      return jsonResponse({
-        success: true,
+      const driveUrl = `https://drive.google.com/file/d/${result.id}/view`;
+
+      const nameMatch = filename.match(/^(.*?)\s+(\d{4}-\d{2}-\d{2})\.pdf$/i);
+      const entry = {
+        filename,
+        id: nameMatch ? nameMatch[1] : filename.replace(/\.pdf$/i, ''),
+        date: nameMatch ? nameMatch[2] : new Date().toISOString().slice(0, 10),
+        driveUrl,
         fileId: result.id,
-        name: result.name,
-        url: `https://drive.google.com/file/d/${result.id}/view`,
-      }, 200, corsHeaders);
+        uploadedAt: new Date().toISOString(),
+        ...(preparedBy ? { preparedBy } : {}),
+      };
+
+      // Non-fatal — directory update failure should not fail the upload
+      updateDirectory(env, entry).catch(err => console.error('directory update failed:', err));
+
+      return jsonResponse({ success: true, fileId: result.id, name: result.name, url: driveUrl }, 200, corsHeaders);
     } catch (err) {
       console.error(err.stack || err.message);
       return jsonResponse({ error: err.message }, 500, corsHeaders);
@@ -113,4 +128,53 @@ async function uploadToDrive(accessToken, pdfBuffer, filename, folderId) {
   }
 
   return res.json();
+}
+
+async function updateDirectory(env, entry) {
+  if (!env.GH_TOKEN) return;
+
+  const apiUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${DIRECTORY_PATH}`;
+  const headers = {
+    Authorization: `Bearer ${env.GH_TOKEN}`,
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'atc-pdf-worker',
+  };
+
+  let sha = null;
+  let entries = [];
+
+  const getRes = await fetch(apiUrl, { headers });
+  if (getRes.ok) {
+    const data = await getRes.json();
+    sha = data.sha;
+    try {
+      entries = JSON.parse(atob(data.content.replace(/\n/g, '')));
+    } catch {}
+  } else if (getRes.status !== 404) {
+    throw new Error(`GitHub GET failed: ${getRes.status}`);
+  }
+
+  entries.unshift(entry);
+
+  const content = toBase64(JSON.stringify(entries, null, 2));
+  const putBody = { message: `audit: ${entry.filename}`, content, ...(sha ? { sha } : {}) };
+
+  const putRes = await fetch(apiUrl, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(putBody),
+  });
+
+  if (!putRes.ok) {
+    throw new Error(`GitHub PUT failed (${putRes.status}): ${await putRes.text()}`);
+  }
+}
+
+function toBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }

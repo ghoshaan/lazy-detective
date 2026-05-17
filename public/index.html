@@ -420,7 +420,7 @@
     <form class="upload-form" id="upload-form">
       <div class="file-input-group">
         <label for="user-name-input">Your Name</label>
-        <input type="text" id="user-name-input" placeholder="Used in PDF export filenames" autocomplete="name">
+        <input type="text" id="user-name-input" placeholder="Shown in PDF header and audit directory" autocomplete="name">
       </div>
       <div class="file-input-group">
         <label for="file-inputs">NDJSON Data Files</label>
@@ -553,7 +553,7 @@ $('user-name-input').addEventListener('input', function() {
 });
 
 $('name-btn').addEventListener('click', () => {
-  const v = prompt('Your name (used in PDF export filenames):', getUserName());
+  const v = prompt('Your name (shown in PDF header and audit directory):', getUserName());
   if (v !== null) {
     setUserName(v);
     const inp = $('user-name-input');
@@ -2145,6 +2145,8 @@ async function uploadPdfToDrive(blob, filename) {
   const form = new FormData();
   form.append('file', blob, filename);
   form.append('filename', filename);
+  const name = getUserName();
+  if (name) form.append('preparedBy', name);
   const res = await fetch(DRIVE_WORKER_URL, { method: 'POST', body: form });
   if (!res.ok) throw new Error(`Worker ${res.status}: ${await res.text()}`);
   return res.json();

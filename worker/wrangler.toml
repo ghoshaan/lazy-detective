@@ -8,3 +8,4 @@ compatibility_date = "2025-01-01"
 #   GOOGLE_CLIENT_SECRET — OAuth2 Client Secret
 #   GOOGLE_REFRESH_TOKEN — OAuth2 Refresh Token
 #   FOLDER_ID            — Google Drive folder ID from the share URL
+#   GH_TOKEN             — GitHub personal access token (repo scope) for updating directory.json

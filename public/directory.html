@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audit Directory · lazy detective</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --panel: #161616;
+    --line: #2a2a2a;
+    --ink: #e8e8e8;
+    --ink-dim: #888;
+    --amber: #ffb347;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: 'JetBrains Mono', monospace; font-size: 13px; min-height: 100vh; }
+
+  header { border-bottom: 1px solid var(--line); padding: 18px 28px; display: flex; align-items: baseline; gap: 16px; }
+  .site-title { font-family: 'Fraunces', serif; font-weight: 300; font-size: 20px; cursor: pointer; }
+  .site-title em { font-style: italic; color: var(--amber); font-weight: 600; }
+  .page-label { color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; }
+
+  .toolbar { padding: 24px 28px 0; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .search { flex: 1; min-width: 220px; max-width: 480px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-family: inherit; font-size: 13px; padding: 10px 14px; outline: none; }
+  .search:focus { border-color: var(--amber); }
+  .search::placeholder { color: var(--ink-dim); }
+
+  .meta { padding: 14px 28px 0; font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .list { padding: 12px 28px 48px; }
+  .entry { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--line); }
+  .entry:last-child { border-bottom: none; }
+  .entry-left { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 20px; }
+  .entry-id { font-weight: 700; color: var(--ink); }
+  .entry-date { color: var(--ink-dim); font-size: 11px; }
+  .entry-by { color: var(--ink-dim); font-size: 11px; font-style: italic; }
+  .entry-link { color: var(--amber); text-decoration: none; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; white-space: nowrap; }
+  .entry-link:hover { text-decoration: underline; }
+
+  .empty { padding: 48px 28px; color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
+  .loading { padding: 48px 28px; color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="site-title" onclick="location.href='.'">lazy<em>detective</em></div>
+  <div class="page-label">audit directory</div>
+</header>
+
+<div class="toolbar">
+  <input class="search" id="search" placeholder="Search by ID, date, or name…" autocomplete="off">
+</div>
+
+<div class="meta" id="meta"></div>
+<div class="list" id="list"><div class="loading">Loading…</div></div>
+
+<script>
+const DIRECTORY_URL = 'https://raw.githubusercontent.com/ghoshaan/lazy-detective/main/public/directory.json';
+
+let allEntries = [];
+
+async function load() {
+  try {
+    const res = await fetch(DIRECTORY_URL + '?t=' + Date.now());
+    allEntries = res.ok ? await res.json() : [];
+  } catch {
+    allEntries = [];
+  }
+  render(document.getElementById('search').value);
+}
+
+function render(q) {
+  const lq = q.toLowerCase();
+  const filtered = lq
+    ? allEntries.filter(e =>
+        (e.id || '').toLowerCase().includes(lq) ||
+        (e.date || '').includes(lq) ||
+        (e.preparedBy || '').toLowerCase().includes(lq)
+      )
+    : allEntries;
+
+  document.getElementById('meta').textContent =
+    `${filtered.length} audit${filtered.length === 1 ? '' : 's'}` +
+    (q && filtered.length !== allEntries.length ? ` of ${allEntries.length}` : '');
+
+  const list = document.getElementById('list');
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">${q ? 'No results' : 'No audits saved yet'}</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(e => `
+    <div class="entry">
+      <div class="entry-left">
+        <span class="entry-id">${esc(e.id)}</span>
+        <span class="entry-date">${esc(e.date)}</span>
+        ${e.preparedBy ? `<span class="entry-by">by ${esc(e.preparedBy)}</span>` : ''}
+      </div>
+      <a class="entry-link" href="${esc(e.driveUrl)}" target="_blank" rel="noopener">open pdf</a>
+    </div>
+  `).join('');
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+document.getElementById('search').addEventListener('input', e => render(e.target.value));
+load();
+</script>
+</body>
+</html>
