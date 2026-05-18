@@ -551,11 +551,16 @@ const results = $('results');
 const statusL = $('status-l');
 const statusR = $('status-r');
 
-// Reset audio currentTime on play to avoid Linux audio subsystem init delay being perceived as offset
+// On first play only, reset to 0s to avoid Linux encoder-delay offset.
+// Skip reset if user has manually seeked or if audio has already played once.
+const _audioPlayed = new WeakSet();
+const _audioSeeked = new WeakSet();
+results.addEventListener('seeking', e => { if (e.target.tagName === 'AUDIO') _audioSeeked.add(e.target); }, true);
 results.addEventListener('play', e => {
-  if (e.target.tagName === 'AUDIO' && e.target.currentTime > 0.05) {
-    e.target.currentTime = 0;
-  }
+  const a = e.target;
+  if (a.tagName !== 'AUDIO') return;
+  if (!_audioPlayed.has(a) && !_audioSeeked.has(a) && a.currentTime > 0.05) a.currentTime = 0;
+  _audioPlayed.add(a);
 }, true);
 
 let allDocs = [];
