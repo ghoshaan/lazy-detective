@@ -12,24 +12,24 @@ export default {
       'Access-Control-Max-Age': '86400',
     };
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders });
-    }
-
-    const url = new URL(request.url);
-    if (url.pathname.startsWith('/github')) {
-      return handleGithubProxy(request, env, url, corsHeaders);
-    }
-
-    if (url.pathname === '/drive/search') {
-      return handleDriveSearch(request, env, url, corsHeaders);
-    }
-
-    if (request.method !== 'POST') {
-      return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
-    }
-
     try {
+      if (request.method === 'OPTIONS') {
+        return new Response(null, { status: 204, headers: corsHeaders });
+      }
+
+      const url = new URL(request.url);
+      if (url.pathname.startsWith('/github')) {
+        return await handleGithubProxy(request, env, url, corsHeaders);
+      }
+
+      if (url.pathname === '/drive/search') {
+        return handleDriveSearch(request, env, url, corsHeaders);
+      }
+
+      if (request.method !== 'POST') {
+        return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
+      }
+
       const formData = await request.formData();
       const file = formData.get('file');
       const filename = formData.get('filename') || 'audit-report.pdf';
