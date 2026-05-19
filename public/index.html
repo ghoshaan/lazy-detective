@@ -1517,7 +1517,7 @@ function renderDoc(d) {
   
   const hasTlEdit = tlEditsMap.has(String(d.id));
   const suppressHistory = !hasTlEdit && d.versions.length > 0 && !d.reviewedBy && (d.pct || 0) === 0 && !d.hasPunctChange;
-  const tlBadge = `<button class="tag tag-tl-edit${hasTlEdit ? ' has-edit' : ''}" data-tlbtn="${escapeAttr(String(d.id))}">${hasTlEdit ? 'Edit ✎' : 'Edit'}</button>`;
+  const tlBadge = `<button class="tag tag-tl-edit${hasTlEdit ? ' has-edit' : ''}" data-tlbtn="${escapeAttr(String(d.id))}">${hasTlEdit ? 'Edited' : 'Edit'}</button>`;
 
   const punctTag = d.hasPunctChange ? `<span class="tag" style="color:var(--ink-dim);border-color:var(--line-2);">punctuation</span>` : '';
 
