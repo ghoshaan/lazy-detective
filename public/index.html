@@ -1094,6 +1094,10 @@ async function processSnapshots(files) {
   loadMajor();
   loadTlEdits();
   loadSelection();
+  if (isAppVisible && selection.size > 0 && confirm('Clear previously checked boxes?')) {
+    selection.clear();
+    saveSelection();
+  }
   populateFilterSuggestions();
   $('m-docs').textContent = allDocs.length.toLocaleString();
   statusL.textContent = `${isAppVisible ? 'added' : 'ready'} · ${allDocs.length.toLocaleString()} recordings`;
