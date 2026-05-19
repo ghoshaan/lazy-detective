@@ -259,19 +259,19 @@
   .result-content .history-panel { margin-top: 0; }
   .comment-row { display: flex; gap: 8px; align-items: flex-start; }
   .comment-row .comment-input { flex: 1; width: auto; }
-  .comment-input { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 8px 12px; border-radius: 0; outline: none; resize: vertical; min-height: 44px; transition: border-color 0.15s; }
+  .comment-input { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 13px; padding: 8px 12px; border-radius: 0; outline: none; resize: vertical; min-height: 44px; transition: border-color 0.15s, box-shadow 0.15s; }
   .comment-input:focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
   .paste-btn { width: 52px; min-height: 44px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; flex-shrink: 0; align-self: stretch; }
   .paste-btn:hover { border-color: #4095ff; color: #4095ff; background: rgba(64,149,255,0.08); }
   .rating-btn { width: 66px; min-height: 34px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink-dim); font-size: 11px; font-family: inherit; cursor: pointer; transition: all 0.15s; line-height: 1.3; }
   .reject-btn:hover { border-color: #c0392b; color: #c0392b; }
-  .reject-btn.active { background: rgba(192,57,43,0.12); border-color: #c0392b; color: #c0392b; font-weight: 600; }
+  .reject-btn.active { background: rgba(192,57,43,0.12); border-color: #c0392b; color: #c0392b; }
   .major-btn:hover { border-color: #e67e22; color: #e67e22; }
-  .major-btn.active { background: rgba(230,126,34,0.12); border-color: #e67e22; color: #e67e22; font-weight: 600; }
+  .major-btn.active { background: rgba(230,126,34,0.12); border-color: #e67e22; color: #e67e22; }
   .minor-btn:hover { border-color: var(--amber); color: var(--amber); }
-  .minor-btn.active { background: rgba(255,179,71,0.12); border-color: var(--amber); color: var(--amber); font-weight: 600; }
+  .minor-btn.active { background: rgba(255,179,71,0.12); border-color: var(--amber); color: var(--amber); }
   .good-btn:hover { border-color: var(--green); color: var(--green); }
-  .good-btn.active { background: rgba(102,187,106,0.12); border-color: var(--green); color: var(--green); font-weight: 600; }
+  .good-btn.active { background: rgba(102,187,106,0.12); border-color: var(--green); color: var(--green); }
   .result.editing .segments, .result.editing .history-panel { display: none !important; }
   .comment-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .pasted-img-wrap { position: relative; width: 120px; height: 80px; border: 1px solid var(--line-2); background: var(--bg); }
@@ -555,7 +555,10 @@
     </div>
     <div style="padding: 16px 32px 24px;">
       <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-faint); margin-bottom: 8px;">General Comments</div>
-      <textarea id="general-comment" class="comment-input" style="min-height: 80px;" placeholder="Enter general comments for the export..."></textarea>
+      <div class="comment-row">
+        <button class="paste-btn" data-general="1" title="Paste text or image from clipboard">&#128203; Paste</button>
+        <textarea id="general-comment" class="comment-input" style="min-height: 80px;" placeholder="Enter general comments for the export..."></textarea>
+      </div>
       <div class="comment-images" id="general-comment-images"></div>
     </div>
     <div class="status">
@@ -2193,13 +2196,14 @@ document.addEventListener('click', e => {
   const pasteBtn = e.target.closest('.paste-btn');
   if (pasteBtn) {
     const id = pasteBtn.dataset.cid;
+    const isGeneral = pasteBtn.dataset.general === '1';
     navigator.clipboard.read().then(items => {
       for (const item of items) {
         // Text
         if (item.types.includes('text/plain')) {
           item.getType('text/plain').then(blob => blob.text()).then(txt => {
             if (!txt) return;
-            const ta = document.querySelector(`.comment-input[data-cid="${CSS.escape(id)}"]`);
+            const ta = isGeneral ? $('general-comment') : document.querySelector(`.comment-input[data-cid="${CSS.escape(id)}"]`);
             if (!ta) return;
             const start = ta.selectionStart, end = ta.selectionEnd;
             ta.value = ta.value.slice(0, start) + txt + ta.value.slice(end);
@@ -2214,30 +2218,36 @@ document.addEventListener('click', e => {
             const reader = new FileReader();
             reader.onload = ev => {
               const dataUrl = ev.target.result;
-              const current = commentsMap.get(id) || { text: '', images: [] };
-              if (typeof current === 'string') {
-                commentsMap.set(id, { text: current, images: [dataUrl] });
+              if (isGeneral) {
+                generalCommentImages = [...generalCommentImages, dataUrl];
+                saveGeneralComment();
+                renderGeneralCommentImages();
               } else {
-                current.images = [...(current.images || []), dataUrl];
-                commentsMap.set(id, current);
-              }
-              saveComments();
-              if (!selection.has(id)) {
-                selection.add(id);
-                saveSelection();
-                updateSelectionBar();
-                const cb = document.querySelector(`.select-cb[data-sel="${CSS.escape(id)}"]`);
-                if (cb) cb.checked = true;
-              }
-              const container = document.getElementById(`imgs-${id}`);
-              if (container) {
-                const final = commentsMap.get(id);
-                container.innerHTML = final.images.map((src, i) => `
-                  <div class="pasted-img-wrap">
-                    <img src="${src}" >
-                    <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
-                  </div>
-                `).join('');
+                const current = commentsMap.get(id) || { text: '', images: [] };
+                if (typeof current === 'string') {
+                  commentsMap.set(id, { text: current, images: [dataUrl] });
+                } else {
+                  current.images = [...(current.images || []), dataUrl];
+                  commentsMap.set(id, current);
+                }
+                saveComments();
+                if (!selection.has(id)) {
+                  selection.add(id);
+                  saveSelection();
+                  updateSelectionBar();
+                  const cb = document.querySelector(`.select-cb[data-sel="${CSS.escape(id)}"]`);
+                  if (cb) cb.checked = true;
+                }
+                const container = document.getElementById(`imgs-${id}`);
+                if (container) {
+                  const final = commentsMap.get(id);
+                  container.innerHTML = final.images.map((src, i) => `
+                    <div class="pasted-img-wrap">
+                      <img src="${src}" >
+                      <button class="remove-img" data-cid="${escapeAttr(id)}" data-idx="${i}">&times;</button>
+                    </div>
+                  `).join('');
+                }
               }
             };
             reader.readAsDataURL(blob);
@@ -2246,7 +2256,7 @@ document.addEventListener('click', e => {
       }
     }).catch(() => {
       // Clipboard access denied — fall back to focusing the textarea so the user can Ctrl+V
-      const ta = document.querySelector(`.comment-input[data-cid="${CSS.escape(id)}"]`);
+      const ta = isGeneral ? $('general-comment') : document.querySelector(`.comment-input[data-cid="${CSS.escape(id)}"]`);
       if (ta) ta.focus();
     });
     return;
