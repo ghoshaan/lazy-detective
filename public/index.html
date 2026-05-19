@@ -673,20 +673,25 @@ let ratingMap = new Map();
 const GENERAL_COMMENTS_KEY = 'atc-search-general-comments-v1';
 let generalCommentImages = [];
 
-function loadMajor() {
-  try { majorSet = new Set(JSON.parse(localStorage.getItem(MAJOR_KEY) || '[]')); } catch { majorSet = new Set(); }
-  try {
-    const s = localStorage.getItem(RATING_KEY);
-    ratingMap = s ? new Map(JSON.parse(s)) : new Map();
-  } catch { ratingMap = new Map(); }
-  // migrate legacy majorSet entries
-  majorSet.forEach(id => { if (!ratingMap.has(String(id))) ratingMap.set(String(id), 'major'); });
+async function loadMajor() {
+  let data = await loadAnnotation('ratings');
+  if (data === null) {
+    // migrate from localStorage
+    try { data = JSON.parse(localStorage.getItem(RATING_KEY) || '[]'); } catch { data = []; }
+    try {
+      const legacy = JSON.parse(localStorage.getItem(MAJOR_KEY) || '[]');
+      legacy.forEach(id => { if (!data.find(([k]) => k === String(id))) data.push([String(id), 'major']); });
+    } catch {}
+    saveAnnotation('ratings', data);
+    localStorage.removeItem(RATING_KEY);
+    localStorage.removeItem(MAJOR_KEY);
+  }
+  ratingMap = new Map(data);
+  majorSet = new Set([...ratingMap.entries()].filter(([,v]) => v === 'major').map(([k]) => k));
 }
 function saveMajor() {
-  // derive majorSet from ratingMap for serialization backward-compat
   majorSet = new Set([...ratingMap.entries()].filter(([,v]) => v === 'major').map(([k]) => k));
-  localStorage.setItem(MAJOR_KEY, JSON.stringify([...majorSet]));
-  localStorage.setItem(RATING_KEY, JSON.stringify([...ratingMap]));
+  saveAnnotation('ratings', [...ratingMap]);
 }
 
 const COMMENTS_KEY = 'atc-search-comments-v1';
@@ -734,11 +739,17 @@ function saveComments() {
 
 const TL_EDITS_KEY = 'atc-search-tl-edits-v1';
 let tlEditsMap = new Map();
-function loadTlEdits() {
-  try { const s = localStorage.getItem(TL_EDITS_KEY); if (s) tlEditsMap = new Map(JSON.parse(s)); } catch { tlEditsMap = new Map(); }
+async function loadTlEdits() {
+  let data = await loadAnnotation('tl-edits');
+  if (data === null) {
+    try { const s = localStorage.getItem(TL_EDITS_KEY); data = s ? JSON.parse(s) : []; } catch { data = []; }
+    if (data.length) saveAnnotation('tl-edits', data);
+    localStorage.removeItem(TL_EDITS_KEY);
+  }
+  tlEditsMap = new Map(data);
 }
 function saveTlEdits() {
-  localStorage.setItem(TL_EDITS_KEY, JSON.stringify([...tlEditsMap]));
+  saveAnnotation('tl-edits', [...tlEditsMap]);
 }
 function saveGeneralComment() {
   const data = {
@@ -1092,9 +1103,9 @@ async function processSnapshots(files) {
   if (!isAppVisible) showApp();
 
   await loadComments();
-  loadMajor();
-  loadTlEdits();
-  loadSelection();
+  await loadMajor();
+  await loadTlEdits();
+  await loadSelection();
   if (isAppVisible && selection.size > 0 && confirm('Clear previously checked boxes?')) {
     selection.clear();
     saveSelection();
@@ -1109,9 +1120,10 @@ async function processSnapshots(files) {
 // ====================== IndexedDB ======================
 
 const DB_NAME = 'lazy-detective-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const FILES_STORE = 'files';
 const COMMENTS_STORE = 'comments';
+const ANNOTATIONS_STORE = 'annotations';
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -1120,6 +1132,7 @@ function openDb() {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(FILES_STORE)) db.createObjectStore(FILES_STORE, { keyPath: 'name' });
       if (!db.objectStoreNames.contains(COMMENTS_STORE)) db.createObjectStore(COMMENTS_STORE, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(ANNOTATIONS_STORE)) db.createObjectStore(ANNOTATIONS_STORE, { keyPath: 'type' });
     };
     req.onsuccess = e => resolve(e.target.result);
     req.onerror = e => reject(e.target.error);
@@ -1198,6 +1211,31 @@ async function clearDbAndReload() {
   try { await clearDb(); } catch {}
   location.reload();
 }
+
+async function saveAnnotation(type, data) {
+  try {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(ANNOTATIONS_STORE, 'readwrite');
+      tx.objectStore(ANNOTATIONS_STORE).put({ type, data });
+      tx.oncomplete = () => resolve();
+      tx.onerror = e => reject(e.target.error);
+    });
+  } catch (e) { console.warn('Failed to save annotation to IndexedDB:', e); }
+}
+
+async function loadAnnotation(type) {
+  try {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(ANNOTATIONS_STORE, 'readonly');
+      const req = tx.objectStore(ANNOTATIONS_STORE).get(type);
+      req.onsuccess = e => resolve(e.target.result?.data ?? null);
+      req.onerror = e => reject(e.target.error);
+    });
+  } catch (e) { console.warn('Failed to load annotation from IndexedDB:', e); return null; }
+}
+
 // Clicking the site title now just reloads (preserving IDB) so the Recent uploads
 // panel reappears with your saved files. Use "Clear saved files" or "Start fresh"
 // to explicitly wipe the cache.
@@ -3052,14 +3090,17 @@ $('share-btn').addEventListener('click', async () => {
   }
 });
 
-function loadSelection() {
-  try {
-    const saved = localStorage.getItem(SELECTION_KEY);
-    if (saved) selection = new Set(JSON.parse(saved));
-  } catch { selection = new Set(); }
+async function loadSelection() {
+  let data = await loadAnnotation('selection');
+  if (data === null) {
+    try { const s = localStorage.getItem(SELECTION_KEY); data = s ? JSON.parse(s) : []; } catch { data = []; }
+    if (data.length) saveAnnotation('selection', data);
+    localStorage.removeItem(SELECTION_KEY);
+  }
+  selection = new Set(data.map(String));
   updateSelectionBar();
 }
-function saveSelection() { localStorage.setItem(SELECTION_KEY, JSON.stringify([...selection])); }
+function saveSelection() { saveAnnotation('selection', [...selection]); }
 function updateSelectionBar() {
   const bar = $('selection-bar');
   $('sel-count').textContent = selection.size;
