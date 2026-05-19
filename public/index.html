@@ -1627,7 +1627,7 @@ function renderDoc(d) {
   return `
     <article class="result" data-docid="${escapeAttr(String(d.id))}">
       <header class="result-head">
-        <div class="result-head-row"><div class="result-head-left">${cbEl}</div><div class="result-head-content">${tlBadge}<span class="result-key-inner">${keyEl}${copyKeyEl}${adsbEl}${aipEl}</span></div></div>
+        <div class="result-head-row"><div class="result-head-left">${cbEl}</div><div class="result-head-content"><span class="result-key-inner">${keyEl}${tlBadge}${copyKeyEl}${adsbEl}${aipEl}</span></div></div>
         <div class="result-tags">
           ${reviewTag}
           <span class="tag-dur">${dur}</span>
